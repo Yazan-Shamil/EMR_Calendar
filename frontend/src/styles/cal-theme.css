@@ -1,0 +1,82 @@
+/* Cal.com theme variables */
+:root {
+  /* Background Standard */
+  --cal-bg-emphasis: hsla(220, 13%, 91%, 1);
+  --cal-bg: hsla(0, 0%, 100%, 1);
+  --cal-bg-subtle: hsla(220, 14%, 94%, 1);
+  --cal-bg-muted: hsla(210, 20%, 97%, 1);
+  --cal-bg-inverted: hsla(210, 30%, 4%, 1);
+
+  /* Text Colors */
+  --cal-text: hsla(216, 10%, 29%, 1);
+  --cal-text-emphasis: hsla(216, 13%, 15%, 1);
+  --cal-text-default: hsla(214, 6%, 42%, 1);
+  --cal-text-subtle: hsla(210, 8%, 56%, 1);
+  --cal-text-muted: hsla(210, 6%, 72%, 1);
+  --cal-text-inverted: hsla(0, 0%, 100%, 1);
+
+  /* Border Colors */
+  --cal-border: hsla(216, 13%, 89%, 1);
+  --cal-border-emphasis: hsla(216, 13%, 75%, 1);
+  --cal-border-subtle: hsla(216, 13%, 93%, 1);
+  --cal-border-muted: hsla(216, 13%, 96%, 1);
+
+  /* Brand Colors */
+  --cal-brand: #111827;
+  --cal-brand-emphasis: #101010;
+  --cal-brand-subtle: #9CA3AF;
+  --cal-brand-accent: white;
+}
+
+/* Cal.com color classes */
+.bg-muted {
+  background-color: var(--cal-bg-muted);
+}
+
+.bg-default {
+  background-color: var(--cal-bg);
+}
+
+.bg-subtle {
+  background-color: var(--cal-bg-subtle);
+}
+
+.bg-emphasis {
+  background-color: var(--cal-bg-emphasis);
+}
+
+.text-default {
+  color: var(--cal-text-default);
+}
+
+.text-emphasis {
+  color: var(--cal-text-emphasis);
+}
+
+.text-subtle {
+  color: var(--cal-text-subtle);
+}
+
+.text-muted {
+  color: var(--cal-text-muted);
+}
+
+.border-default {
+  border-color: var(--cal-border);
+}
+
+.border-subtle {
+  border-color: var(--cal-border-subtle);
+}
+
+.border-muted {
+  border-color: var(--cal-border-muted);
+}
+
+.hover\:bg-subtle:hover {
+  background-color: var(--cal-bg-subtle);
+}
+
+.hover\:text-emphasis:hover {
+  color: var(--cal-text-emphasis);
+}
