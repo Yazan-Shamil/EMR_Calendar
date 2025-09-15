@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 type InferredVariantProps = VariantProps<typeof buttonClasses>;
 
-export type ButtonColor = NonNullable<InferredVariantProps["color"]>;
+export type ButtonColor = string;
 
 export type ButtonBaseProps = {
   onClick?: (event: React.MouseEvent<HTMLElement, MouseEvent>) => void;
@@ -16,8 +16,8 @@ export type ButtonBaseProps = {
     color?: ButtonColor;
   };
 
-export type ButtonProps = ButtonBaseProps & 
-  Omit<JSX.IntrinsicElements["button"], "onClick" | "ref">;
+export type ButtonProps = ButtonBaseProps &
+  Omit<React.JSX.IntrinsicElements["button"], "onClick" | "ref">;
 
 export const buttonClasses = cva(
   "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
@@ -30,6 +30,7 @@ export const buttonClasses = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        icon: "hover:bg-accent hover:text-accent-foreground",
       },
       size: {
         default: "h-10 px-4 py-2",

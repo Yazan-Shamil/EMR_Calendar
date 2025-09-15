@@ -1,9 +1,11 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
 
-interface ButtonOrLinkProps extends React.ComponentProps<"button"> {
+interface ButtonOrLinkProps {
   href?: string;
   children: React.ReactNode;
+  onClick?: React.MouseEventHandler<HTMLButtonElement | HTMLAnchorElement>;
+  className?: string;
 }
 
 export const ButtonOrLink = React.forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonOrLinkProps>(
@@ -14,7 +16,7 @@ export const ButtonOrLink = React.forwardRef<HTMLButtonElement | HTMLAnchorEleme
           to={href}
           className={className}
           ref={ref as React.RefObject<HTMLAnchorElement>}
-          onClick={onClick}
+          onClick={onClick as React.MouseEventHandler<HTMLAnchorElement>}
         >
           {children}
         </Link>
@@ -25,7 +27,7 @@ export const ButtonOrLink = React.forwardRef<HTMLButtonElement | HTMLAnchorEleme
       <button
         className={className}
         ref={ref as React.RefObject<HTMLButtonElement>}
-        onClick={onClick}
+        onClick={onClick as React.MouseEventHandler<HTMLButtonElement>}
         {...props}
       >
         {children}

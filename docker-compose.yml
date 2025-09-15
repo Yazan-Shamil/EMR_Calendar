@@ -1,0 +1,18 @@
+services:
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    ports:
+      - "5555:5555"
+    container_name: emr-calendar-backend
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    container_name: emr-calendar-frontend
+    depends_on:
+      - backend
