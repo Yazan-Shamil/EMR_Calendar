@@ -1,4 +1,4 @@
-package auth
+package events
 
 import (
 	"database/sql"
@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"emr-calendar-backend/auth"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -25,7 +27,7 @@ func NewEventsHandler(db *sql.DB) *EventsHandler {
 
 // GetEvents retrieves events with optional filtering
 func (eh *EventsHandler) GetEvents(c *gin.Context) {
-	userCtx, _ := GetUserContext(c)
+	userCtx, _ := auth.GetUserContext(c)
 
 	// Parse query parameters
 	dateFilter := c.Query("date")
@@ -68,7 +70,7 @@ func (eh *EventsHandler) GetEvents(c *gin.Context) {
 		argIndex += 2
 	}
 
-	// Event type filtering
+	// auth.Event type filtering
 	if eventType != "" && (eventType == "appointment" || eventType == "block") {
 		query += fmt.Sprintf(" AND event_type = $%d", argIndex)
 		args = append(args, eventType)
@@ -87,9 +89,9 @@ func (eh *EventsHandler) GetEvents(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var events []Event
+	var events []auth.Event
 	for rows.Next() {
-		var event Event
+		var event auth.Event
 		err := rows.Scan(
 			&event.ID, &event.Title, &event.Description, &event.StartTime, &event.EndTime,
 			&event.EventType, &event.Status, &event.CreatedBy, &event.PatientID,
@@ -114,9 +116,9 @@ func (eh *EventsHandler) GetEvents(c *gin.Context) {
 
 // CreateEvent creates a new calendar event
 func (eh *EventsHandler) CreateEvent(c *gin.Context) {
-	userCtx, _ := GetUserContext(c)
+	userCtx, _ := auth.GetUserContext(c)
 
-	var req CreateEventRequest
+	var req auth.CreateEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
 		return
@@ -150,7 +152,7 @@ func (eh *EventsHandler) CreateEvent(c *gin.Context) {
 		RETURNING id, title, description, start_time, end_time, event_type, status,
 		          created_by, patient_id, created_at, updated_at`
 
-	var event Event
+	var event auth.Event
 	now := time.Now().UTC()
 	err := eh.db.QueryRow(
 		query,
@@ -173,7 +175,7 @@ func (eh *EventsHandler) CreateEvent(c *gin.Context) {
 
 // GetEvent retrieves a specific event by ID
 func (eh *EventsHandler) GetEvent(c *gin.Context) {
-	userCtx, _ := GetUserContext(c)
+	userCtx, _ := auth.GetUserContext(c)
 	eventID := c.Param("id")
 
 	query := `
@@ -182,7 +184,7 @@ func (eh *EventsHandler) GetEvent(c *gin.Context) {
 		FROM events
 		WHERE id = $1 AND created_by = $2`
 
-	var event Event
+	var event auth.Event
 	err := eh.db.QueryRow(query, eventID, userCtx.UserID).Scan(
 		&event.ID, &event.Title, &event.Description, &event.StartTime, &event.EndTime,
 		&event.EventType, &event.Status, &event.CreatedBy, &event.PatientID,
@@ -203,17 +205,17 @@ func (eh *EventsHandler) GetEvent(c *gin.Context) {
 
 // UpdateEvent updates an existing event
 func (eh *EventsHandler) UpdateEvent(c *gin.Context) {
-	userCtx, _ := GetUserContext(c)
+	userCtx, _ := auth.GetUserContext(c)
 	eventID := c.Param("id")
 
-	var req UpdateEventRequest
+	var req auth.UpdateEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
 		return
 	}
 
 	// First, check if event exists and belongs to user
-	var existingEvent Event
+	var existingEvent auth.Event
 	checkQuery := `
 		SELECT id, title, description, start_time, end_time, event_type, status,
 		       created_by, patient_id, created_at, updated_at
@@ -305,7 +307,7 @@ func (eh *EventsHandler) UpdateEvent(c *gin.Context) {
 		strings.Join(updateFields, ", "),
 		argIndex, argIndex+1)
 
-	var updatedEvent Event
+	var updatedEvent auth.Event
 	err = eh.db.QueryRow(updateQuery, args...).Scan(
 		&updatedEvent.ID, &updatedEvent.Title, &updatedEvent.Description,
 		&updatedEvent.StartTime, &updatedEvent.EndTime, &updatedEvent.EventType,
@@ -329,7 +331,7 @@ func (eh *EventsHandler) UpdateEvent(c *gin.Context) {
 
 // DeleteEvent deletes an existing event
 func (eh *EventsHandler) DeleteEvent(c *gin.Context) {
-	userCtx, _ := GetUserContext(c)
+	userCtx, _ := auth.GetUserContext(c)
 	eventID := c.Param("id")
 
 	query := `DELETE FROM events WHERE id = $1 AND created_by = $2`

@@ -7,6 +7,7 @@ import (
 	"emr-calendar-backend/auth"
 	"emr-calendar-backend/config"
 	"emr-calendar-backend/database"
+	"emr-calendar-backend/events"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,7 +29,7 @@ func main() {
 
 	// Database connection (optional for auth proxy)
 	var userHandler *auth.UserHandler
-	var eventsHandler *auth.EventsHandler
+	var eventsHandler *events.EventsHandler
 	if cfg.DatabaseURL != "" {
 		db, err := database.Connect(cfg.DatabaseURL)
 		if err != nil {
@@ -37,7 +38,7 @@ func main() {
 		} else {
 			defer db.Close()
 			userHandler = auth.NewUserHandler(db)
-			eventsHandler = auth.NewEventsHandler(db)
+			eventsHandler = events.NewEventsHandler(db)
 			log.Println("Database connected successfully")
 		}
 	} else {

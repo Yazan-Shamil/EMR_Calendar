@@ -10,6 +10,7 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - DATABASE_URL=${DATABASE_URL}
       - PORT=5555
     env_file:
       - ./backend/.env
@@ -26,7 +27,7 @@ services:
     environment:
       - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
       - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
-      - VITE_API_URL=http://backend:5555
+      - VITE_API_URL=http://localhost:5555
     env_file:
       - ./frontend/.env
     volumes:

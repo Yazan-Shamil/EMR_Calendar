@@ -35,7 +35,6 @@ func (ts *TokenService) GenerateAccessToken(user *User) (string, error) {
 		Email:    user.Email,
 		Role:     "authenticated",
 		UserRole: user.Role,
-		TeamID:   teamID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   user.ID,
 			IssuedAt:  jwt.NewNumericDate(now),

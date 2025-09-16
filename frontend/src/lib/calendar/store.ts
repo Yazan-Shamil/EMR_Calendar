@@ -4,10 +4,14 @@ import dayjs from 'dayjs';
 export interface CalendarEvent {
   id: string;
   title: string;
+  description?: string;
   start: Date;
   end: Date;
   color?: string;
   isDraft?: boolean;
+  eventType?: 'appointment' | 'block';
+  status?: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  patientId?: string;
 }
 
 export interface DraftEvent {

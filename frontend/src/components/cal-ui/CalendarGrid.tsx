@@ -10,8 +10,7 @@ import {
   getEventDisplayConfig,
   formatTimeRange,
 } from '@/lib/calendar/gridHelpers';
-import { EventModal, type EventFormData } from './EventModal';
-import toast from 'react-hot-toast';
+import { EventModalWithAPI } from './EventModalWithAPI';
 
 interface CalendarGridProps {
   days: Date[];
@@ -128,89 +127,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
     }
   }, []); // Empty dependency array to run only on mount
 
-  const handleSaveEvent = (eventData: EventFormData) => {
-    let startDateTime: dayjs.Dayjs;
-    let endDateTime: dayjs.Dayjs;
-
-    if (draftEvent) {
-      startDateTime = dayjs(draftEvent.start);
-      endDateTime = dayjs(draftEvent.end);
-
-      if (eventData.startTime && eventData.endTime) {
-        const [startHourValue, startMin] = eventData.startTime.split(':').map(Number);
-        const [endHourValue, endMin] = eventData.endTime.split(':').map(Number);
-
-        startDateTime = startDateTime.hour(startHourValue).minute(startMin);
-        endDateTime = endDateTime.hour(endHourValue).minute(endMin);
-      }
-    } else {
-      startDateTime = dayjs(`${eventData.date} ${eventData.startTime}`);
-      endDateTime = dayjs(`${eventData.date} ${eventData.endTime}`);
-    }
-
-    if (selectedEvent && modalMode === 'edit') {
-      // Update existing event
-      const updatedEvent: CalendarEvent = {
-        ...selectedEvent,
-        title: eventData.title || 'Untitled Event',
-        start: startDateTime.toDate(),
-        end: endDateTime.toDate(),
-      };
-      updateEvent(updatedEvent);
-    } else {
-      // Create new event
-      const newEvent: CalendarEvent = {
-        id: Date.now().toString(),
-        title: eventData.title || 'Untitled Event',
-        start: startDateTime.toDate(),
-        end: endDateTime.toDate(),
-        color: '#3b82f6',
-      };
-      addEvent(newEvent);
-    }
-
-    setDraftEvent(null);
-    setSelectedEvent(null);
-  };
-
-  const deletedEventRef = useRef<CalendarEvent | null>(null);
-
-  const handleDeleteEvent = (eventId: string) => {
-    // Find the event before deleting it
-    const eventToDelete = events.find(e => e.id === eventId);
-    if (eventToDelete) {
-      deletedEventRef.current = eventToDelete;
-      deleteEvent(eventId);
-      setSelectedEvent(null);
-
-      // Show toast with undo option
-      toast((t) => (
-        <div className="flex items-center space-x-2">
-          <span>Event deleted</span>
-          <button
-            onClick={() => {
-              if (deletedEventRef.current) {
-                addEvent(deletedEventRef.current);
-                deletedEventRef.current = null;
-              }
-              toast.dismiss(t.id);
-            }}
-            className="ml-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm font-medium"
-          >
-            Undo
-          </button>
-        </div>
-      ), {
-        duration: 5000,
-        position: 'bottom-center',
-        style: {
-          background: '#333',
-          color: '#fff',
-        },
-      });
-    }
-  };
-
+  // Modal close handler - clears draft event
   const handleModalClose = () => {
     setIsModalOpen(false);
     setDraftEvent(null);
@@ -227,64 +144,77 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
 
     if (!draftDay.isSame(targetDay)) return null;
 
-    const { top, height } = calculateEventPosition(draftEvent, startHour);
-    const displayConfig = getEventDisplayConfig(height);
+    const position = calculateEventPosition(draftEvent.start, draftEvent.end, startHour);
+    const display = getEventDisplayConfig(draftEvent.start, draftEvent.end);
+
+    // Only render if event is within visible hours
+    if (position.top < 0 && position.height <= Math.abs(position.top)) {
+      return null;
+    }
 
     return (
       <div
-        className="absolute left-1 right-1 bg-blue-400/30 border-2 border-blue-500 text-white text-xs rounded shadow-sm pointer-events-none z-25"
+        key="draft-event"
+        className="absolute inset-x-1 bg-blue-100 border-2 border-dashed border-blue-400 rounded-md p-1 opacity-70 pointer-events-none"
         style={{
-          top: `${top}px`,
-          height: `${height}px`,
+          top: `${Math.max(0, position.top)}px`,
+          height: `${position.height + Math.min(0, position.top)}px`,
+          zIndex: 10,
         }}
       >
-        <div className="p-1 overflow-hidden flex items-center h-full">
-          {displayConfig === 'full' ? (
-            <div className="w-full">
-              <div className="font-semibold text-blue-900 truncate text-[11px]">New Event</div>
-              <div className="text-[10px] text-blue-800 truncate">
-                {formatTimeRange(draftEvent.start, draftEvent.end)}
-              </div>
-            </div>
-          ) : displayConfig === 'compact' ? (
-            <div className="text-[11px] text-blue-900 font-medium truncate">New Event</div>
-          ) : (
-            <div className="h-full bg-blue-500/20 rounded"></div>
-          )}
+        <div className="text-xs text-blue-700 font-medium">
+          {formatTimeRange(draftEvent.start, draftEvent.end)}
         </div>
+        <div className="text-xs text-blue-600 mt-0.5">{display.duration}</div>
       </div>
     );
   };
 
   // Render event
   const renderEvent = (event: CalendarEvent) => {
-    const { top, height } = calculateEventPosition(event, startHour);
-    const displayConfig = getEventDisplayConfig(height);
+    const position = calculateEventPosition(event.start, event.end, startHour);
+    const display = getEventDisplayConfig(event.start, event.end);
+
+    // Only render if event is within visible hours
+    if (position.top < 0 && position.height <= Math.abs(position.top)) {
+      return null;
+    }
+
+    const bgColor = event.color || '#3b82f6';
+    const isLight = bgColor === '#fbbf24' || bgColor === '#facc15';
+    const textColor = isLight ? 'text-gray-800' : 'text-white';
 
     return (
       <div
         key={event.id}
-        className="absolute left-1 right-1 bg-blue-500 text-white text-xs rounded shadow-sm cursor-pointer hover:bg-blue-600 transition-colors overflow-hidden z-20"
+        className={cn(
+          'absolute inset-x-1 rounded-md p-1.5 cursor-pointer shadow-sm hover:shadow-md transition-shadow',
+          'overflow-hidden',
+          textColor
+        )}
         style={{
-          top: `${top}px`,
-          height: `${height}px`,
-          backgroundColor: event.color || undefined,
+          top: `${Math.max(0, position.top)}px`,
+          height: `${position.height + Math.min(0, position.top)}px`,
+          backgroundColor: bgColor,
+          zIndex: 20,
         }}
         onClick={(e) => handleEventClick(event, e)}
+        title={`${event.title}\n${formatTimeRange(event.start, event.end)}`}
       >
-        <div className="p-1 overflow-hidden flex items-center h-full">
-          {displayConfig === 'full' ? (
-            <div className="w-full">
-              <div className="font-semibold truncate text-[11px]">{event.title || 'Untitled'}</div>
-              <div className="text-[10px] opacity-90 truncate">
-                {formatTimeRange(event.start, event.end)}
-              </div>
+        <div className="flex flex-col h-full">
+          {display.showTitle && (
+            <div className={cn('text-xs font-medium truncate', textColor)}>
+              {event.title}
             </div>
-          ) : displayConfig === 'compact' ? (
-            <div className="text-[11px] font-medium truncate w-full">{event.title || 'Untitled'}</div>
-          ) : (
-            <div className="h-full flex items-center justify-center w-full">
-              <div className="w-2 h-2 bg-white/50 rounded-full"></div>
+          )}
+          {display.showTime && (
+            <div className={cn('text-xs opacity-90 mt-0.5', textColor)}>
+              {formatTimeRange(event.start, event.end)}
+            </div>
+          )}
+          {display.showDuration && (
+            <div className={cn('text-xs opacity-80', textColor)}>
+              {display.duration}
             </div>
           )}
         </div>
@@ -293,176 +223,134 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
   };
 
   return (
-    <div className={cn('flex flex-col h-full overflow-hidden', className)}>
-      {/* Fixed header with day labels */}
+    <div className={cn('flex-1 overflow-hidden', className)}>
+      {/* Scrollable grid container */}
       <div
-        className="flex-shrink-0 grid overflow-hidden"
-        style={{ gridTemplateColumns: `${GRID_CONFIG.TIME_COLUMN_WIDTH}px repeat(${days.length}, 1fr)` }}
-      >
-        {/* Timezone indicator cell */}
-        <div
-          className="bg-default border-b border-r border-subtle flex items-center justify-center"
-          style={{ height: `${GRID_CONFIG.HEADER_HEIGHT}px` }}
-        >
-          <span className="text-xs font-medium text-default">UTC</span>
-        </div>
-
-        {/* Day headers */}
-        {days.map((day) => (
-          <div
-            key={day.toISOString()}
-            className="bg-default border-b border-r border-subtle last:border-r-0 p-2 text-center flex flex-col justify-center"
-            style={{ height: `${GRID_CONFIG.HEADER_HEIGHT}px` }}
-          >
-            <div className="text-sm font-medium text-default">
-              {dayjs(day).format('ddd')}
-            </div>
-            <div className={cn(
-              'text-lg font-semibold',
-              isToday(day) ? 'text-brand' : 'text-emphasis'
-            )}>
-              {dayjs(day).format('D')}
-            </div>
-            {isToday(day) && (
-              <div className="w-2 h-2 bg-brand rounded-full mx-auto mt-1"></div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Scrollable time grid */}
-      <div
-        className="flex-1 overflow-auto relative min-h-0"
         ref={containerRef}
-        style={{ maxHeight: 'calc(100vh - 200px)' }}
+        className="h-full overflow-y-auto overflow-x-hidden"
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#e2e8f0 transparent',
+        }}
       >
-        <div className="relative">
-          {/* Grid background */}
-          <div
-            className="grid"
-            style={{ gridTemplateColumns: `${GRID_CONFIG.TIME_COLUMN_WIDTH}px repeat(${days.length}, 1fr)` }}
-          >
-            {hours.map((hour) => (
-              <React.Fragment key={hour}>
-                {/* Time label */}
-                <div
-                  className="sticky left-0 z-10 bg-muted/50 border-r border-b border-subtle p-2 text-xs text-default flex items-start"
-                  style={{ height: `${GRID_CONFIG.CELL_HEIGHT}px` }}
-                >
-                  <span className="mt-[-8px]">{formatTime(hour)}</span>
-                </div>
-
-                {/* Day cells */}
-                {days.map((day) => (
-                  <div
-                    key={`${day.toISOString()}-${hour}`}
-                    className={cn(
-                      "relative border-r border-b border-subtle last:border-r-0 hover:bg-subtle/20",
-                      isDragging ? "cursor-crosshair" : "cursor-pointer",
-                      "touch-none" // Prevents touch scrolling interference
-                    )}
-                    style={{ height: `${GRID_CONFIG.CELL_HEIGHT}px` }}
-                    onPointerDown={(e) => handleCellPointerDown(e, day, hour)}
-                    onPointerMove={(e) => handleCellPointerMove(e, day, hour, days)}
-                    onPointerUp={handleCellPointerUp}
-                  >
-                    {/* 15-minute marks */}
-                    <div className="absolute w-full border-b border-subtle/30" style={{ top: '25%' }} />
-                    <div className="absolute w-full border-b border-subtle/50" style={{ top: '50%' }} />
-                    <div className="absolute w-full border-b border-subtle/30" style={{ top: '75%' }} />
-                  </div>
-                ))}
-              </React.Fragment>
-            ))}
-          </div>
-
-          {/* Events layer - positioned absolutely over the grid */}
-          <div
-            className="absolute top-0 left-0 right-0 pointer-events-none"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `${GRID_CONFIG.TIME_COLUMN_WIDTH}px repeat(${days.length}, 1fr)`,
-            }}
-          >
-            {/* Empty time column */}
-            <div></div>
-
-            {/* Event columns for each day */}
-            {days.map((day) => (
-              <div key={`events-${day.toISOString()}`} className="relative pointer-events-auto">
-                {/* Draft event visualization */}
-                {renderDraftEvent(day)}
-
-                {/* Existing events */}
-                {getEventsForDay(day).map(renderEvent)}
+        {/* Grid container with time column and day columns */}
+        <div
+          className="relative"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `${GRID_CONFIG.TIME_COLUMN_WIDTH}px repeat(${days.length}, 1fr)`,
+            minHeight: `${(endHour - startHour + 1) * GRID_CONFIG.CELL_HEIGHT}px`,
+          }}
+        >
+          {/* Hour rows */}
+          {hours.map((hour) => (
+            <React.Fragment key={hour}>
+              {/* Time label */}
+              <div
+                className="sticky left-0 bg-white border-r border-b border-subtle text-xs text-default flex items-start justify-end pr-2 pt-1 z-10"
+                style={{ height: `${GRID_CONFIG.CELL_HEIGHT}px` }}
+              >
+                <span className="mt-[-8px]">{formatTime(hour)}</span>
               </div>
-            ))}
-          </div>
 
-          {/* Current time indicator */}
-          {(() => {
-            const now = dayjs();
-            const nowHour = now.hour();
-            const nowMinute = now.minute();
-
-            if (nowHour >= startHour && nowHour <= endHour) {
-              const todayIndex = days.findIndex(day => isToday(day));
-              if (todayIndex !== -1) {
-                const minutesSinceStart = (nowHour - startHour) * 60 + nowMinute;
-                const topPosition = (minutesSinceStart / 60) * GRID_CONFIG.CELL_HEIGHT;
-
-                return (
-                  <div
-                    className="absolute left-0 right-0 pointer-events-none z-30 grid"
-                    style={{
-                      top: `${topPosition}px`,
-                      gridTemplateColumns: `${GRID_CONFIG.TIME_COLUMN_WIDTH}px repeat(${days.length}, 1fr)`
-                    }}
-                  >
-                    {/* Empty time column */}
-                    <div></div>
-                    {/* Time indicator for each day */}
-                    {days.map((day, index) => (
-                      <div key={`indicator-${index}`} className="relative">
-                        {index === todayIndex && (
-                          <div className="flex items-center">
-                            <div className="w-3 h-3 bg-red-500 rounded-full -ml-1.5" />
-                            <div className="flex-1 h-[2px] bg-red-500" />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                );
-              }
-            }
-            return null;
-          })()}
+              {/* Day cells */}
+              {days.map((day) => (
+                <div
+                  key={`${day.toISOString()}-${hour}`}
+                  className={cn(
+                    "relative border-r border-b border-subtle last:border-r-0 hover:bg-subtle/20",
+                    isDragging ? "cursor-crosshair" : "cursor-pointer",
+                    "touch-none" // Prevents touch scrolling interference
+                  )}
+                  style={{ height: `${GRID_CONFIG.CELL_HEIGHT}px` }}
+                  onPointerDown={(e) => handleCellPointerDown(e, day, hour)}
+                  onPointerMove={(e) => handleCellPointerMove(e, day, hour, days)}
+                  onPointerUp={handleCellPointerUp}
+                >
+                  {/* 15-minute marks */}
+                  <div className="absolute w-full border-b border-subtle/30" style={{ top: '25%' }} />
+                  <div className="absolute w-full border-b border-subtle/50" style={{ top: '50%' }} />
+                  <div className="absolute w-full border-b border-subtle/30" style={{ top: '75%' }} />
+                </div>
+              ))}
+            </React.Fragment>
+          ))}
         </div>
+
+        {/* Events layer - positioned absolutely over the grid */}
+        <div
+          className="absolute top-0 left-0 right-0 pointer-events-none"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `${GRID_CONFIG.TIME_COLUMN_WIDTH}px repeat(${days.length}, 1fr)`,
+          }}
+        >
+          {/* Empty time column */}
+          <div></div>
+
+          {/* Event columns for each day */}
+          {days.map((day) => (
+            <div key={`events-${day.toISOString()}`} className="relative pointer-events-auto">
+              {/* Draft event visualization */}
+              {renderDraftEvent(day)}
+
+              {/* Existing events */}
+              {getEventsForDay(day).map(renderEvent)}
+            </div>
+          ))}
+        </div>
+
+        {/* Current time indicator */}
+        {(() => {
+          const now = dayjs();
+          const nowHour = now.hour();
+          const nowMinute = now.minute();
+
+          if (nowHour >= startHour && nowHour <= endHour) {
+            const todayIndex = days.findIndex(day => isToday(day));
+            if (todayIndex !== -1) {
+              const minutesSinceStart = (nowHour - startHour) * 60 + nowMinute;
+              const topPosition = (minutesSinceStart / 60) * GRID_CONFIG.CELL_HEIGHT;
+
+              return (
+                <div
+                  className="absolute left-0 right-0 pointer-events-none z-30 grid"
+                  style={{
+                    top: `${topPosition}px`,
+                    gridTemplateColumns: `${GRID_CONFIG.TIME_COLUMN_WIDTH}px repeat(${days.length}, 1fr)`
+                  }}
+                >
+                  {/* Empty time column */}
+                  <div></div>
+                  {/* Time indicator for each day */}
+                  {days.map((day, index) => (
+                    <div key={`indicator-${index}`} className="relative">
+                      {index === todayIndex && (
+                        <div className="flex items-center">
+                          <div className="w-3 h-3 bg-red-500 rounded-full -ml-1.5" />
+                          <div className="flex-1 h-[2px] bg-red-500" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+          }
+          return null;
+        })()}
       </div>
 
       {/* Event Modal */}
-      <EventModal
+      <EventModalWithAPI
         isOpen={isModalOpen}
         onClose={handleModalClose}
         selectedDate={selectedDate || draftEvent?.start || selectedEvent?.start || undefined}
         selectedTime={selectedTime || (draftEvent ? dayjs(draftEvent.start).format('HH:mm') : selectedEvent ? dayjs(selectedEvent.start).format('HH:mm') : undefined)}
         selectedEndTime={draftEvent ? dayjs(draftEvent.end).format('HH:mm') : selectedEvent ? dayjs(selectedEvent.end).format('HH:mm') : undefined}
-        onSave={handleSaveEvent}
-        onDelete={handleDeleteEvent}
         position={modalPosition || undefined}
         mode={modalMode}
-        existingEvent={selectedEvent ? {
-          ...selectedEvent,
-          title: selectedEvent.title || '',
-          date: dayjs(selectedEvent.start).format('YYYY-MM-DD'),
-          startTime: dayjs(selectedEvent.start).format('HH:mm'),
-          endTime: dayjs(selectedEvent.end).format('HH:mm'),
-          timezone: 'America/New_York',
-          location: '',
-          patientName: '',
-          providerName: ''
-        } : undefined}
+        existingEvent={selectedEvent || undefined}
       />
     </div>
   );
