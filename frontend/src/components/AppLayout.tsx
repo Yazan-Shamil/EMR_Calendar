@@ -1,17 +1,20 @@
-import { NavigationItem, MiniCalendar, Button, Icon } from '@/components/cal-ui'
+import { NavigationItem, MiniCalendar, Button, Icon, EventModal } from '@/components/cal-ui'
 import { useCalendarStore } from '@/lib/calendar/store'
 import { useTeamsStore } from '@/lib/stores/teamsStore'
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import type { EventFormData } from '@/components/cal-ui/EventModal'
+import dayjs from 'dayjs'
 
 interface AppLayoutProps {
   children: React.ReactNode
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { setSelectedDate } = useCalendarStore()
+  const { setSelectedDate, events, setEvents } = useCalendarStore()
   const { teams, toggleTeamVisibility, toggleMemberVisibility } = useTeamsStore()
   const [expandedTeams, setExpandedTeams] = useState<number[]>([])
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
   const toggleTeamExpanded = (teamId: number) => {
     setExpandedTeams(prev =>
@@ -21,24 +24,31 @@ export function AppLayout({ children }: AppLayoutProps) {
     )
   }
 
+  const handleCreateEvent = (eventData: EventFormData) => {
+    const startDateTime = dayjs(`${eventData.date} ${eventData.startTime}`);
+    const endDateTime = dayjs(`${eventData.date} ${eventData.endTime}`);
+
+    const newEvent = {
+      id: Date.now().toString(),
+      title: eventData.title || 'Untitled Event',
+      start: startDateTime.toDate(),
+      end: endDateTime.toDate(),
+      color: '#3b82f6',
+    };
+
+    setEvents([...events, newEvent]);
+  }
+
   return (
     <div className="flex h-screen">
       {/* Sidebar - Full height, fixed left */}
-      <aside className="bg-muted border-muted fixed left-0 hidden h-full w-14 flex-col overflow-y-auto overflow-x-hidden border-r md:sticky md:flex lg:w-72 lg:px-4">
-        <div className="flex h-full flex-col justify-between py-3 lg:pt-4">
+      <aside className="bg-muted border-muted fixed left-0 hidden h-full w-14 flex-col overflow-y-auto overflow-x-hidden border-r md:sticky md:flex lg:w-72 lg:px-6">
+        <div className="flex h-full flex-col justify-between py-3 lg:pt-6">
           <div>
-            {/* User Profile Section - IN SIDEBAR */}
-            <header className="items-center justify-between md:hidden lg:flex mb-6">
-              <div className="w-full">
-                <div className="flex items-center gap-2 px-2 py-2 hover:bg-subtle rounded-md cursor-pointer">
-                  <div className="h-8 w-8 rounded-full bg-gray-300"></div>
-                  <div className="hidden lg:block">
-                    <p className="text-sm font-medium text-emphasis">John Doe</p>
-                    <p className="text-xs text-default">john@example.com</p>
-                  </div>
-                </div>
-              </div>
-            </header>
+            {/* Nexa Logo */}
+            <div className="flex items-center justify-center lg:justify-start mb-8 px-2">
+              <div className="font-logo text-3xl lg:text-4xl text-primary">nexa</div>
+            </div>
 
             {/* Create Button - Google Calendar Style */}
             <div className="hidden lg:block mb-6">
@@ -46,6 +56,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 variant="default"
                 className="w-full justify-start bg-default text-emphasis hover:bg-subtle border border-subtle rounded-full py-3 px-6 font-medium text-sm transition-all duration-200"
                 size="lg"
+                onClick={() => setIsCreateModalOpen(true)}
               >
                 <Icon name="plus" className="h-5 w-5 mr-3 text-emphasis" />
                 Create
@@ -62,7 +73,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
 
             {/* Navigation Items */}
-            <nav className="space-y-0.5">
+            <nav className="space-y-0.5 px-2">
               <NavigationItem
                 item={{
                   name: "Bookings",
@@ -171,23 +182,16 @@ export function AppLayout({ children }: AppLayoutProps) {
             </nav>
           </div>
 
-          {/* Bottom Navigation */}
-          <nav className="space-y-0.5">
-            <NavigationItem
-              item={{
-                name: "Settings",
-                href: "/settings",
-                icon: "settings",
-              }}
-            />
-            <NavigationItem
-              item={{
-                name: "Help",
-                href: "/help",
-                icon: "circle-help",
-              }}
-            />
-          </nav>
+          {/* User Profile Section - Bottom of sidebar */}
+          <div className="lg:block hidden">
+            <div className="flex items-center gap-2 px-2 py-2 hover:bg-subtle rounded-md cursor-pointer">
+              <div className="h-8 w-8 rounded-full bg-gray-300"></div>
+              <div className="hidden lg:block">
+                <p className="text-sm font-medium text-emphasis">John Doe</p>
+                <p className="text-xs text-default">john@example.com</p>
+              </div>
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -199,6 +203,13 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
         </main>
       </div>
+
+      {/* Create Event Modal */}
+      <EventModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSave={handleCreateEvent}
+      />
     </div>
   )
 }
