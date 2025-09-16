@@ -1,11 +1,18 @@
 services:
   backend:
     build:
-      context: ./Backend
+      context: ./backend
       dockerfile: Dockerfile
     ports:
       - "5555:5555"
     container_name: emr-calendar-backend
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - PORT=5555
+    env_file:
+      - ./backend/.env
 
   frontend:
     build:
@@ -16,7 +23,13 @@ services:
     container_name: emr-calendar-frontend
     depends_on:
       - backend
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_API_URL=http://backend:5555
+    env_file:
+      - ./frontend/.env
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
+      - ./frontend:/app
       - /app/node_modules
+      - /app/.pnpm-store

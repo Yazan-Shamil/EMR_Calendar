@@ -2,10 +2,11 @@ import { Outlet, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanstackDevtools } from '@tanstack/react-devtools'
 import { SvgSprite } from '@/components/SvgSprite'
+import { AuthProvider } from '@/lib/auth'
 
 export const Route = createRootRoute({
   component: () => (
-    <>
+    <AuthProvider>
       <SvgSprite />
       <Outlet />
       <TanstackDevtools
@@ -19,6 +20,6 @@ export const Route = createRootRoute({
           },
         ]}
       />
-    </>
+    </AuthProvider>
   ),
 })

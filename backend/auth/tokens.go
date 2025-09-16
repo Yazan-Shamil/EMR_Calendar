@@ -30,10 +30,12 @@ func NewTokenService(db *sql.DB, jwtSecret string, accessTTL, refreshTTL time.Du
 // GenerateAccessToken creates a new JWT access token
 func (ts *TokenService) GenerateAccessToken(user *User, teamID string) (string, error) {
 	now := time.Now()
-	claims := &Claims{
-		UserID: user.ID,
-		Role:   user.Role,
-		TeamID: teamID,
+	claims := &SupabaseClaims{
+		Sub:      user.ID,
+		Email:    user.Email,
+		Role:     "authenticated",
+		UserRole: user.Role,
+		TeamID:   teamID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   user.ID,
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -81,8 +83,8 @@ func (ts *TokenService) GenerateRefreshToken(userID string) (string, error) {
 }
 
 // ValidateAccessToken validates and parses a JWT access token
-func (ts *TokenService) ValidateAccessToken(tokenString string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+func (ts *TokenService) ValidateAccessToken(tokenString string) (*SupabaseClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &SupabaseClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// Verify signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -94,7 +96,7 @@ func (ts *TokenService) ValidateAccessToken(tokenString string) (*Claims, error)
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	claims, ok := token.Claims.(*Claims)
+	claims, ok := token.Claims.(*SupabaseClaims)
 	if !ok || !token.Valid {
 		return nil, fmt.Errorf("invalid token claims")
 	}
