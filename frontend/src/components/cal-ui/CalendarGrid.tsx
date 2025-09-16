@@ -227,7 +227,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
       {/* Scrollable grid container */}
       <div
         ref={containerRef}
-        className="h-full overflow-y-auto overflow-x-hidden"
+        className="h-full overflow-y-auto overflow-x-hidden relative"
         style={{
           scrollbarWidth: 'thin',
           scrollbarColor: '#e2e8f0 transparent',

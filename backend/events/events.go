@@ -27,7 +27,11 @@ func NewEventsHandler(db *sql.DB) *EventsHandler {
 
 // GetEvents retrieves events with optional filtering
 func (eh *EventsHandler) GetEvents(c *gin.Context) {
-	userCtx, _ := auth.GetUserContext(c)
+	userCtx, exists := auth.GetUserContext(c)
+	if !exists || userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context not found"})
+		return
+	}
 
 	// Parse query parameters
 	dateFilter := c.Query("date")
@@ -116,7 +120,11 @@ func (eh *EventsHandler) GetEvents(c *gin.Context) {
 
 // CreateEvent creates a new calendar event
 func (eh *EventsHandler) CreateEvent(c *gin.Context) {
-	userCtx, _ := auth.GetUserContext(c)
+	userCtx, exists := auth.GetUserContext(c)
+	if !exists || userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context not found"})
+		return
+	}
 
 	var req auth.CreateEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -175,7 +183,11 @@ func (eh *EventsHandler) CreateEvent(c *gin.Context) {
 
 // GetEvent retrieves a specific event by ID
 func (eh *EventsHandler) GetEvent(c *gin.Context) {
-	userCtx, _ := auth.GetUserContext(c)
+	userCtx, exists := auth.GetUserContext(c)
+	if !exists || userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context not found"})
+		return
+	}
 	eventID := c.Param("id")
 
 	query := `
@@ -205,7 +217,11 @@ func (eh *EventsHandler) GetEvent(c *gin.Context) {
 
 // UpdateEvent updates an existing event
 func (eh *EventsHandler) UpdateEvent(c *gin.Context) {
-	userCtx, _ := auth.GetUserContext(c)
+	userCtx, exists := auth.GetUserContext(c)
+	if !exists || userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context not found"})
+		return
+	}
 	eventID := c.Param("id")
 
 	var req auth.UpdateEventRequest
@@ -331,7 +347,11 @@ func (eh *EventsHandler) UpdateEvent(c *gin.Context) {
 
 // DeleteEvent deletes an existing event
 func (eh *EventsHandler) DeleteEvent(c *gin.Context) {
-	userCtx, _ := auth.GetUserContext(c)
+	userCtx, exists := auth.GetUserContext(c)
+	if !exists || userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context not found"})
+		return
+	}
 	eventID := c.Param("id")
 
 	query := `DELETE FROM events WHERE id = $1 AND created_by = $2`

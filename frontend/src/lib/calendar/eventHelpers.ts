@@ -3,16 +3,26 @@ import { type CalendarEvent } from './store';
 
 // Convert backend Event to frontend CalendarEvent
 export function backendEventToCalendarEvent(event: Event): CalendarEvent {
+  // Parse the ISO string and create Date objects
+  // The Date constructor automatically converts UTC to local timezone
+  const startDate = new Date(event.start_time);
+  const endDate = new Date(event.end_time);
+
+  // Get color based on event type and status
+  const color = event.event_type === 'block'
+    ? '#6b7280' // Gray for blocks
+    : getEventColor('appointment', event.status);
+
   return {
     id: event.id,
     title: event.title,
     description: event.description,
-    start: new Date(event.start_time),
-    end: new Date(event.end_time),
+    start: startDate,
+    end: endDate,
     eventType: event.event_type,
     status: event.status,
     patientId: event.patient_id,
-    color: event.event_type === 'appointment' ? '#3b82f6' : '#6b7280', // Blue for appointments, gray for blocks
+    color: color,
   };
 }
 
