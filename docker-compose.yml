@@ -16,3 +16,7 @@ services:
     container_name: emr-calendar-frontend
     depends_on:
       - backend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - /app/node_modules

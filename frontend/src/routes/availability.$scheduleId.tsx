@@ -2,6 +2,8 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Plus, Copy, Trash2, Info, ChevronDown } from 'lucide-react'
 import { useAvailabilityStore, type Schedule } from '@/lib/stores/availabilityStore'
+import { DateOverrideModal } from '@/components/DateOverrideModal'
+import { DateOverrideList } from '@/components/DateOverrideList'
 
 interface TimeSlot {
   startTime: Date
@@ -11,6 +13,13 @@ interface TimeSlot {
 interface DayAvailability {
   enabled: boolean
   timeSlots: TimeSlot[]
+}
+
+interface DateOverride {
+  id: string
+  dates: Date[]  // Changed to support multiple dates
+  isUnavailable: boolean
+  timeSlots: { startTime: string; endTime: string }[]
 }
 
 export const Route = createFileRoute('/availability/$scheduleId')({
@@ -53,6 +62,9 @@ function ScheduleEditor({
 }) {
   const [localSchedule, setLocalSchedule] = useState<Schedule>(schedule)
   const [hasChanges, setHasChanges] = useState(false)
+  const [dateOverrides, setDateOverrides] = useState<DateOverride[]>([])
+  const [showOverrideModal, setShowOverrideModal] = useState(false)
+  const [editingOverride, setEditingOverride] = useState<DateOverride | null>(null)
 
   // Convert schedule to day-based structure for easier editing
   const [weeklyAvailability, setWeeklyAvailability] = useState<DayAvailability[]>(() => {
@@ -183,6 +195,32 @@ function ScheduleEditor({
   const parseTime = (timeString: string) => {
     const [hours, minutes] = timeString.split(':').map(Number)
     return new Date(`1970-01-01T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00.000Z`)
+  }
+
+  const handleAddOverride = () => {
+    setEditingOverride(null)
+    setShowOverrideModal(true)
+  }
+
+  const handleEditOverride = (override: DateOverride) => {
+    setEditingOverride(override)
+    setShowOverrideModal(true)
+  }
+
+  const handleSaveOverride = (override: DateOverride) => {
+    if (editingOverride) {
+      setDateOverrides(dateOverrides.map(o => o.id === override.id ? override : o))
+    } else {
+      setDateOverrides([...dateOverrides, override])
+    }
+    setHasChanges(true)
+    setShowOverrideModal(false)
+    setEditingOverride(null)
+  }
+
+  const handleDeleteOverride = (id: string) => {
+    setDateOverrides(dateOverrides.filter(o => o.id !== id))
+    setHasChanges(true)
   }
 
   const days = [
@@ -329,17 +367,34 @@ function ScheduleEditor({
 
             {/* Date Overrides */}
             <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Date overrides</h3>
-                <Info className="h-4 w-4 text-gray-400" />
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-medium text-gray-900">Date overrides</h3>
+                  <Info className="h-4 w-4 text-gray-400" />
+                </div>
+                <button
+                  onClick={handleAddOverride}
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add an override
+                </button>
               </div>
               <p className="text-sm text-gray-600 mb-4">
                 Add dates when your availability changes from your daily hours.
               </p>
-              <button className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
-                <Plus className="h-4 w-4" />
-                Add an override
-              </button>
+
+              {dateOverrides.length > 0 ? (
+                <DateOverrideList
+                  overrides={dateOverrides}
+                  onEdit={handleEditOverride}
+                  onDelete={handleDeleteOverride}
+                />
+              ) : (
+                <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-200 border-dashed">
+                  <p className="text-sm text-gray-500">No date overrides configured</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -352,18 +407,14 @@ function ScheduleEditor({
               </label>
               <div className="relative">
                 <select
-                  value={localSchedule.timeZone}
+                  value="UTC"
                   onChange={(e) => {
-                    setLocalSchedule({ ...localSchedule, timeZone: e.target.value })
+                    setLocalSchedule({ ...localSchedule, timeZone: "UTC" })
                     setHasChanges(true)
                   }}
                   className="w-full appearance-none border border-gray-300 rounded-md px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900"
                 >
-                  <option value="America/Toronto">America/Toronto</option>
-                  <option value="America/New_York">America/New_York</option>
-                  <option value="America/Los_Angeles">America/Los_Angeles</option>
-                  <option value="Europe/London">Europe/London</option>
-                  <option value="Asia/Tokyo">Asia/Tokyo</option>
+                  <option value="UTC">UTC</option>
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
               </div>
@@ -371,6 +422,23 @@ function ScheduleEditor({
           </div>
         </div>
       </div>
+
+      {/* Date Override Modal */}
+      <DateOverrideModal
+        isOpen={showOverrideModal}
+        onClose={() => {
+          setShowOverrideModal(false)
+          setEditingOverride(null)
+        }}
+        onSave={handleSaveOverride}
+        existingOverride={editingOverride}
+        excludedDates={dateOverrides.flatMap(o =>
+          o.dates.map(date => {
+            const d = new Date(date)
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          })
+        )}
+      />
     </div>
   )
 }

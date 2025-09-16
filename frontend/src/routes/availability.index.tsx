@@ -20,7 +20,7 @@ function AvailabilityContent() {
     addSchedule({
       name: newScheduleName,
       isDefault: false,
-      timeZone: 'America/New_York',
+      timeZone: 'UTC',
       availability: [
         {
           days: [1, 2, 3, 4, 5], // Monday to Friday
@@ -203,12 +203,10 @@ function ScheduleListItem({
                     <br />
                   </span>
                 ))}
-              {schedule.timeZone && (
-                <p className="my-1 flex items-center text-xs text-gray-500">
-                  <Globe className="h-3.5 w-3.5 mr-1" />
-                  {schedule.timeZone}
-                </p>
-              )}
+              <p className="my-1 flex items-center text-xs text-gray-500">
+                <Globe className="h-3.5 w-3.5 mr-1" />
+                UTC
+              </p>
             </p>
           </Link>
         </div>
