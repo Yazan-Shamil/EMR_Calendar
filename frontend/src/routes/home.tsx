@@ -3,6 +3,7 @@ import { WeeklyCalendar, DayCalendar } from '@/components/cal-ui'
 import { useCalendarStore, type CalendarEvent } from '@/lib/calendar/store'
 import { useEffect } from 'react'
 import { AppLayout } from '@/components/AppLayout'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
 
 export const Route = createFileRoute('/home')({
   component: HomePage,
@@ -40,21 +41,23 @@ function HomePage() {
   }, [])
 
   return (
-    <AppLayout>
-      {/* Calendar Views - Full Height with integrated header */}
-      <div className="flex-1 p-4 overflow-hidden">
-        {view === 'week' ? (
-          <WeeklyCalendar
-            onViewChange={setView}
-            className="w-full h-full"
-          />
-        ) : (
-          <DayCalendar
-            onViewChange={setView}
-            className="w-full h-full"
-          />
-        )}
-      </div>
-    </AppLayout>
+    <ProtectedRoute>
+      <AppLayout>
+        {/* Calendar Views - Full Height with integrated header */}
+        <div className="flex-1 p-4 overflow-hidden">
+          {view === 'week' ? (
+            <WeeklyCalendar
+              onViewChange={setView}
+              className="w-full h-full"
+            />
+          ) : (
+            <DayCalendar
+              onViewChange={setView}
+              className="w-full h-full"
+            />
+          )}
+        </div>
+      </AppLayout>
+    </ProtectedRoute>
   )
 }

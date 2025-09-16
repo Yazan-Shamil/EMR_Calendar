@@ -1,18 +1,23 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Eye, EyeOff, Mail, User } from 'lucide-react'
+import { useAuth } from '@/lib/auth'
+import toast from 'react-hot-toast'
 
 export const Route = createFileRoute('/signup')({
   component: SignupPage,
 })
 
 function SignupPage() {
+  const navigate = useNavigate()
+  const { signUp, isAuthenticated } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -20,13 +25,41 @@ function SignupPage() {
     confirmPassword: ''
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate({ to: '/home' })
+    }
+  }, [isAuthenticated, navigate])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match')
+      toast.error('Passwords do not match')
       return
     }
-    console.log('Signup attempt:', formData)
+
+    if (formData.password.length < 6) {
+      toast.error('Password must be at least 6 characters')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const { error } = await signUp(formData.email, formData.password, formData.name)
+
+      if (error) {
+        toast.error(error.message || 'Failed to create account')
+      } else {
+        toast.success('Account created successfully!')
+        navigate({ to: '/home' })
+      }
+    } catch (err) {
+      toast.error('An unexpected error occurred')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,6 +93,7 @@ function SignupPage() {
                   onChange={handleChange}
                   className="pl-10"
                   required
+                  disabled={loading}
                 />
                 <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               </div>
@@ -77,6 +111,7 @@ function SignupPage() {
                   onChange={handleChange}
                   className="pl-10"
                   required
+                  disabled={loading}
                 />
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               </div>
@@ -94,6 +129,7 @@ function SignupPage() {
                   onChange={handleChange}
                   className="pr-10"
                   required
+                  disabled={loading}
                 />
                 <button
                   type="button"
@@ -117,6 +153,7 @@ function SignupPage() {
                   onChange={handleChange}
                   className="pr-10"
                   required
+                  disabled={loading}
                 />
                 <button
                   type="button"
@@ -128,8 +165,8 @@ function SignupPage() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full">
-              Create Account
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Creating account...' : 'Create Account'}
             </Button>
           </form>
 

@@ -2,9 +2,10 @@ import { NavigationItem, MiniCalendar, Button, Icon, EventModal } from '@/compon
 import { useCalendarStore } from '@/lib/calendar/store'
 import { useTeamsStore } from '@/lib/stores/teamsStore'
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import { ChevronDown, ChevronRight, Eye, EyeOff, LogOut } from 'lucide-react'
 import type { EventFormData } from '@/components/cal-ui/EventModal'
 import dayjs from 'dayjs'
+import { useAuth } from '@/lib/auth'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -13,6 +14,7 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const { setSelectedDate, events, setEvents } = useCalendarStore()
   const { teams, toggleTeamVisibility, toggleMemberVisibility } = useTeamsStore()
+  const { user, signOut } = useAuth()
   const [expandedTeams, setExpandedTeams] = useState<number[]>([])
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
@@ -184,12 +186,23 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           {/* User Profile Section - Bottom of sidebar */}
           <div className="lg:block hidden">
-            <div className="flex items-center gap-2 px-2 py-2 hover:bg-subtle rounded-md cursor-pointer">
-              <div className="h-8 w-8 rounded-full bg-gray-300"></div>
-              <div className="hidden lg:block">
-                <p className="text-sm font-medium text-emphasis">John Doe</p>
-                <p className="text-xs text-default">john@example.com</p>
+            <div className="flex items-center justify-between px-2 py-2">
+              <div className="flex items-center gap-2 hover:bg-subtle rounded-md p-1 flex-1">
+                <div className="h-8 w-8 rounded-full bg-gray-300"></div>
+                <div className="hidden lg:block">
+                  <p className="text-sm font-medium text-emphasis">
+                    {user?.user_metadata?.full_name || 'User'}
+                  </p>
+                  <p className="text-xs text-default">{user?.email || 'user@example.com'}</p>
+                </div>
               </div>
+              <button
+                onClick={() => signOut()}
+                className="p-2 hover:bg-subtle rounded-md"
+                title="Sign out"
+              >
+                <LogOut className="h-4 w-4 text-default" />
+              </button>
             </div>
           </div>
         </div>
