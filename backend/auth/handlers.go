@@ -1,8 +1,13 @@
 package auth
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
@@ -16,6 +21,156 @@ func NewUserHandler(db *sql.DB) *UserHandler {
 	return &UserHandler{
 		db: db,
 	}
+}
+
+// AuthHandler handles Supabase auth proxy endpoints
+type AuthHandler struct {
+	supabaseURL     string
+	supabaseAnonKey string
+}
+
+func NewAuthHandler(supabaseURL, supabaseAnonKey string) *AuthHandler {
+	return &AuthHandler{
+		supabaseURL:     supabaseURL,
+		supabaseAnonKey: supabaseAnonKey,
+	}
+}
+
+// Login proxies authentication request to Supabase
+func (ah *AuthHandler) Login(c *gin.Context) {
+	var loginReq struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&loginReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Prepare Supabase auth request
+	supabaseAuthURL := fmt.Sprintf("%s/auth/v1/token?grant_type=password", ah.supabaseURL)
+
+	payload := map[string]string{
+		"email":    loginReq.Email,
+		"password": loginReq.Password,
+	}
+
+	ah.proxyToSupabase(c, supabaseAuthURL, payload)
+}
+
+// Refresh proxies token refresh request to Supabase
+func (ah *AuthHandler) Refresh(c *gin.Context) {
+	var refreshReq struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&refreshReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Prepare Supabase refresh request
+	supabaseAuthURL := fmt.Sprintf("%s/auth/v1/token?grant_type=refresh_token", ah.supabaseURL)
+
+	payload := map[string]string{
+		"refresh_token": refreshReq.RefreshToken,
+	}
+
+	ah.proxyToSupabase(c, supabaseAuthURL, payload)
+}
+
+// Logout proxies logout request to Supabase
+func (ah *AuthHandler) Logout(c *gin.Context) {
+	// Get the Authorization header to extract the JWT
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Authorization header required for logout"})
+		return
+	}
+
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid authorization header format"})
+		return
+	}
+
+	// Prepare Supabase logout request
+	supabaseAuthURL := fmt.Sprintf("%s/auth/v1/logout", ah.supabaseURL)
+
+	// Create HTTP client and request
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", supabaseAuthURL, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request"})
+		return
+	}
+
+	// Set headers
+	req.Header.Set("Authorization", authHeader)
+	req.Header.Set("apikey", ah.supabaseAnonKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	// Make request to Supabase
+	resp, err := client.Do(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to contact authentication service"})
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read response"})
+		return
+	}
+
+	// Return Supabase response
+	c.Header("Content-Type", "application/json")
+	c.Status(resp.StatusCode)
+	c.Writer.Write(body)
+}
+
+// proxyToSupabase is a helper function that proxies requests to Supabase auth
+func (ah *AuthHandler) proxyToSupabase(c *gin.Context, supabaseURL string, payload interface{}) {
+	// Marshal payload to JSON
+	jsonPayload, err := json.Marshal(payload)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process request"})
+		return
+	}
+
+	// Create HTTP client and request
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", supabaseURL, bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request"})
+		return
+	}
+
+	// Set headers
+	req.Header.Set("apikey", ah.supabaseAnonKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	// Make request to Supabase
+	resp, err := client.Do(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to contact authentication service"})
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read response"})
+		return
+	}
+
+	// Return Supabase response
+	c.Header("Content-Type", "application/json")
+	c.Status(resp.StatusCode)
+	c.Writer.Write(body)
 }
 
 // GetCurrentUser returns current user information from JWT claims + database lookup
@@ -55,7 +210,6 @@ func (uh *UserHandler) GetCurrentUser(c *gin.Context) {
 		Role:        userProfile.Role,
 		Timezone:    userProfile.Timezone,
 		PhoneNumber: userProfile.PhoneNumber,
-		TeamID:      userProfile.TeamID,
 		CreatedAt:   userProfile.CreatedAt,
 		UpdatedAt:   userProfile.UpdatedAt,
 	}
@@ -78,7 +232,6 @@ func (uh *UserHandler) CreateUserProfile(c *gin.Context) {
 		Role        string  `json:"role" binding:"required,oneof=provider patient"`
 		Timezone    string  `json:"timezone"`
 		PhoneNumber *string `json:"phone_number"`
-		TeamID      *string `json:"team_id"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -98,7 +251,6 @@ func (uh *UserHandler) CreateUserProfile(c *gin.Context) {
 		Role:        req.Role,
 		Timezone:    req.Timezone,
 		PhoneNumber: req.PhoneNumber,
-		TeamID:      req.TeamID,
 	}
 
 	err := uh.createUserProfile(profile)
@@ -116,8 +268,8 @@ func (uh *UserHandler) CreateUserProfile(c *gin.Context) {
 // Helper function to get user profile from database
 func (uh *UserHandler) getUserProfile(userID string) (*UserProfile, error) {
 	query := `
-		SELECT id, full_name, role, timezone, phone_number, team_id, created_at, updated_at
-		FROM user_profiles
+		SELECT id, full_name, role, timezone, phone_number, created_at, updated_at
+		FROM users
 		WHERE id = $1`
 
 	profile := &UserProfile{}
@@ -127,7 +279,6 @@ func (uh *UserHandler) getUserProfile(userID string) (*UserProfile, error) {
 		&profile.Role,
 		&profile.Timezone,
 		&profile.PhoneNumber,
-		&profile.TeamID,
 		&profile.CreatedAt,
 		&profile.UpdatedAt,
 	)
@@ -142,8 +293,8 @@ func (uh *UserHandler) getUserProfile(userID string) (*UserProfile, error) {
 // Helper function to create user profile
 func (uh *UserHandler) createUserProfile(profile *UserProfile) error {
 	query := `
-		INSERT INTO user_profiles (id, full_name, role, timezone, phone_number, team_id, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`
+		INSERT INTO users (id, full_name, role, timezone, phone_number, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`
 
 	_, err := uh.db.Exec(
 		query,
@@ -152,7 +303,6 @@ func (uh *UserHandler) createUserProfile(profile *UserProfile) error {
 		profile.Role,
 		profile.Timezone,
 		profile.PhoneNumber,
-		profile.TeamID,
 	)
 
 	return err
@@ -166,7 +316,6 @@ func ProviderDashboard(c *gin.Context) {
 		"user_id": userCtx.UserID,
 		"email":   userCtx.Email,
 		"role":    userCtx.UserRole,
-		"team_id": userCtx.TeamID,
 	})
 }
 

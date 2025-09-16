@@ -28,12 +28,11 @@ func NewTokenService(db *sql.DB, jwtSecret string, accessTTL, refreshTTL time.Du
 }
 
 // GenerateAccessToken creates a new JWT access token
-func (ts *TokenService) GenerateAccessToken(user *User, teamID string) (string, error) {
+func (ts *TokenService) GenerateAccessToken(user *User) (string, error) {
 	now := time.Now()
 	claims := &Claims{
 		UserID: user.ID,
 		Role:   user.Role,
-		TeamID: teamID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   user.ID,
 			IssuedAt:  jwt.NewNumericDate(now),

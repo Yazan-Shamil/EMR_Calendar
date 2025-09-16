@@ -19,26 +19,51 @@ func main() {
 	}
 
 	// Validate Supabase configuration
-	if cfg.SupabaseURL == "" || cfg.SupabaseJWTSecret == "" {
-		log.Fatal("Missing required Supabase configuration. Please set SUPABASE_URL and SUPABASE_JWT_SECRET")
+	if cfg.SupabaseURL == "" || cfg.SupabaseJWTSecret == "" || cfg.SupabaseAnonKey == "" {
+		log.Fatal("Missing required Supabase configuration. Please set SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_JWT_SECRET")
 	}
 
-	// Connect to Supabase Postgres database
-	// Use Supabase connection string format
-	db, err := database.Connect(cfg.SupabaseURL + "?sslmode=require")
-	if err != nil {
-		log.Fatal("Failed to connect to Supabase database:", err)
-	}
-	defer db.Close()
+	// Initialize handlers
+	authHandler := auth.NewAuthHandler(cfg.SupabaseURL, cfg.SupabaseAnonKey)
 
-	// Initialize user handler
-	userHandler := auth.NewUserHandler(db)
+	// Database connection (optional for auth proxy)
+	var userHandler *auth.UserHandler
+	var eventsHandler *auth.EventsHandler
+	if cfg.DatabaseURL != "" {
+		db, err := database.Connect(cfg.DatabaseURL)
+		if err != nil {
+			log.Printf("Warning: Failed to connect to database: %v", err)
+			log.Printf("Auth proxy will work, but user profile and events endpoints will not be available")
+		} else {
+			defer db.Close()
+			userHandler = auth.NewUserHandler(db)
+			eventsHandler = auth.NewEventsHandler(db)
+			log.Println("Database connected successfully")
+		}
+	} else {
+		log.Println("No DATABASE_URL provided - auth proxy will work, but user profile and events endpoints will not be available")
+	}
 
 	// Setup Gin router
 	r := gin.Default()
 
 	// Add CORS middleware
 	r.Use(auth.CORSMiddleware())
+
+	// Root endpoint
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "EMR Calendar Backend API",
+			"version": "v1.0",
+			"endpoints": gin.H{
+				"health":       "GET /health",
+				"auth_login":   "POST /auth/login",
+				"auth_refresh": "POST /auth/refresh",
+				"auth_logout":  "POST /auth/logout",
+				"api":          "Protected endpoints under /api/v1/*",
+			},
+		})
+	})
 
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
@@ -50,15 +75,25 @@ func main() {
 		})
 	})
 
+	// Auth proxy endpoints (no authentication required)
+	authRoutes := r.Group("/auth")
+	{
+		authRoutes.POST("/login", authHandler.Login)
+		authRoutes.POST("/refresh", authHandler.Refresh)
+		authRoutes.POST("/logout", authHandler.Logout)
+	}
+
 	// Protected API endpoints (all require Supabase JWT)
 	apiRoutes := r.Group("/api/v1")
 	apiRoutes.Use(auth.SupabaseAuthMiddleware(cfg.SupabaseJWTSecret))
 	{
-		// User routes
-		userRoutes := apiRoutes.Group("/users")
-		{
-			userRoutes.GET("/me", userHandler.GetCurrentUser)
-			userRoutes.POST("/profile", userHandler.CreateUserProfile) // Create profile after signup
+		// User routes (only if database is connected)
+		if userHandler != nil {
+			userRoutes := apiRoutes.Group("/users")
+			{
+				userRoutes.GET("/me", userHandler.GetCurrentUser)
+				userRoutes.POST("/profile", userHandler.CreateUserProfile) // Create profile after signup
+			}
 		}
 
 		// Provider-only routes
@@ -81,8 +116,19 @@ func main() {
 			// patientRoutes.POST("/book", bookAppointment)
 		}
 
-		// Future endpoints for events, availability, slots, etc.
-		// eventsRoutes := apiRoutes.Group("/events")
+		// Events routes (only if database is connected)
+		if eventsHandler != nil {
+			eventsRoutes := apiRoutes.Group("/events")
+			{
+				eventsRoutes.GET("", eventsHandler.GetEvents)
+				eventsRoutes.POST("", eventsHandler.CreateEvent)
+				eventsRoutes.GET("/:id", eventsHandler.GetEvent)
+				eventsRoutes.PATCH("/:id", eventsHandler.UpdateEvent)
+				eventsRoutes.DELETE("/:id", eventsHandler.DeleteEvent)
+			}
+		}
+
+		// Future endpoints for availability, slots, etc.
 		// availabilityRoutes := apiRoutes.Group("/availability")
 		// slotsRoutes := apiRoutes.Group("/slots")
 	}
