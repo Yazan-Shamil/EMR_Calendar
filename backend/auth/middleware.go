@@ -48,7 +48,6 @@ func SupabaseAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			UserID:   claims.Sub,
 			Email:    claims.Email,
 			UserRole: claims.UserRole,
-			TeamID:   claims.TeamID,
 		}
 
 		c.Set("user", userContext)
@@ -119,27 +118,6 @@ func RequirePatient() gin.HandlerFunc {
 	return RequireRole("patient")
 }
 
-// RequireTeamContext ensures the user belongs to a team (for multi-tenant operations)
-func RequireTeamContext() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userCtx, exists := c.Get("user")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User context not found"})
-			c.Abort()
-			return
-		}
-
-		userContext := userCtx.(*UserContext)
-
-		if userContext.TeamID == "" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Team context required"})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
 
 // CORSMiddleware handles CORS for the API
 func CORSMiddleware() gin.HandlerFunc {

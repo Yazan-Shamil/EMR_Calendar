@@ -13,6 +13,9 @@ type Config struct {
 	SupabaseAnonKey string
 	SupabaseJWTSecret string
 
+	// Database Configuration
+	DatabaseURL string
+
 	// Server Configuration
 	Port string
 }
@@ -25,6 +28,7 @@ func Load() (*Config, error) {
 		SupabaseURL:       getEnv("SUPABASE_URL", ""),
 		SupabaseAnonKey:   getEnv("SUPABASE_ANON_KEY", ""),
 		SupabaseJWTSecret: getEnv("SUPABASE_JWT_SECRET", ""),
+		DatabaseURL:       getEnv("DATABASE_URL", ""),
 		Port:              getEnv("PORT", "5555"),
 	}
 
