@@ -11,6 +11,7 @@ export interface CalendarEvent {
   isDraft?: boolean;
   eventType?: 'appointment' | 'block';
   status?: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  created_by: string;
   patientId?: string;
 }
 

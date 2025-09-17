@@ -21,6 +21,7 @@ export function backendEventToCalendarEvent(event: Event): CalendarEvent {
     end: endDate,
     eventType: event.event_type,
     status: event.status,
+    created_by: event.created_by,
     patientId: event.patient_id,
     color: color,
   };

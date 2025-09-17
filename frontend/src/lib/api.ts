@@ -47,6 +47,22 @@ export async function apiRequest<T = any>(
 // Health check
 export const checkHealth = () => apiRequest('/health', { skipAuth: true })
 
+// User types
+export interface User {
+  id: string
+  email: string
+  full_name: string
+  role: 'provider' | 'patient'
+  timezone: string
+  phone_number?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface UsersResponse {
+  users: User[]
+}
+
 // User endpoints
 export const getCurrentUser = () => apiRequest('/api/v1/users/me')
 export const createUserProfile = (profile: { name: string; email: string }) =>
@@ -54,6 +70,8 @@ export const createUserProfile = (profile: { name: string; email: string }) =>
     method: 'POST',
     body: JSON.stringify(profile),
   })
+export const getUsersByRole = (role: 'provider' | 'patient') =>
+  apiRequest<UsersResponse>(`/api/users?role=${role}`)
 
 // Provider endpoints
 export const getProviderDashboard = () => apiRequest('/api/v1/provider/dashboard')

@@ -10,7 +10,10 @@ import {
   getEventDisplayConfig,
   formatTimeRange,
 } from '@/lib/calendar/gridHelpers';
-import { EventModalWithAPI } from './EventModalWithAPI';
+import { EventModal } from './EventModal';
+import { createEvent, updateEvent, deleteEvent as deleteEventAPI } from '@/lib/api';
+import { backendEventToCalendarEvent } from '@/lib/calendar/eventHelpers';
+import type { EventFormData } from './EventModal';
 
 interface CalendarGridProps {
   days: Date[];
@@ -23,7 +26,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
     startHour,
     endHour,
     addEvent,
-    updateEvent,
+    updateEvent: updateInStore,
     deleteEvent,
     draftEvent,
     setDraftEvent,
@@ -133,6 +136,74 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
     setDraftEvent(null);
     setSelectedEvent(null);
     setModalMode('create');
+  };
+
+  // Handle save event (create or update)
+  const handleSaveEvent = async (eventData: EventFormData) => {
+    try {
+      const startDateTime = dayjs(`${eventData.date} ${eventData.startTime}`);
+      const endDateTime = dayjs(`${eventData.date} ${eventData.endTime}`);
+
+      if (selectedEvent?.id) {
+        // Update existing event
+        const { data, error } = await updateEvent(selectedEvent.id, {
+          title: eventData.title,
+          description: eventData.title,
+          event_type: eventData.patientId ? 'appointment' : 'block',
+          status: 'confirmed',
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+          patient_id: eventData.patientId,
+        });
+
+        if (error) {
+          console.error('Failed to update event:', error);
+          return;
+        }
+
+        if (data) {
+          const updatedEvent = backendEventToCalendarEvent(data);
+          updateInStore(updatedEvent);
+        }
+      } else {
+        // Create new event
+        const { data, error } = await createEvent({
+          title: eventData.title,
+          description: eventData.title,
+          event_type: eventData.patientId ? 'appointment' : 'block',
+          status: 'confirmed',
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+          patient_id: eventData.patientId,
+        });
+
+        if (error) {
+          console.error('Failed to create event:', error);
+          return;
+        }
+
+        if (data) {
+          const newEvent = backendEventToCalendarEvent(data);
+          addEvent(newEvent);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving event:', error);
+    }
+  };
+
+  // Handle delete event
+  const handleDeleteEvent = async (eventId: string) => {
+    try {
+      const { error } = await deleteEventAPI(eventId);
+      if (error) {
+        console.error('Failed to delete event:', error);
+        return;
+      }
+      deleteEvent(eventId);
+    } catch (error) {
+      console.error('Error deleting event:', error);
+    }
   };
 
   // Render draft event
@@ -342,7 +413,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
       </div>
 
       {/* Event Modal */}
-      <EventModalWithAPI
+      <EventModal
         isOpen={isModalOpen}
         onClose={handleModalClose}
         selectedDate={selectedDate || draftEvent?.start || selectedEvent?.start || undefined}
@@ -350,7 +421,19 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
         selectedEndTime={draftEvent ? dayjs(draftEvent.end).format('HH:mm') : selectedEvent ? dayjs(selectedEvent.end).format('HH:mm') : undefined}
         position={modalPosition || undefined}
         mode={modalMode}
-        existingEvent={selectedEvent || undefined}
+        existingEvent={selectedEvent ? {
+          id: selectedEvent.id,
+          title: selectedEvent.title,
+          date: dayjs(selectedEvent.start).format('YYYY-MM-DD'),
+          startTime: dayjs(selectedEvent.start).format('HH:mm'),
+          endTime: dayjs(selectedEvent.end).format('HH:mm'),
+          timezone: 'America/New_York',
+          patientId: selectedEvent.patientId,
+          providerId: selectedEvent.created_by,
+          created_by: selectedEvent.created_by
+        } : undefined}
+        onSave={handleSaveEvent}
+        onDelete={handleDeleteEvent}
       />
     </div>
   );
