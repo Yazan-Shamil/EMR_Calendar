@@ -1,101 +1,250 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { useAutoAnimate } from '@formkit/auto-animate/react'
-import { useState, useRef, useEffect } from 'react'
-import { createPortal } from 'react-dom'
-import { Clock, Globe, MoreHorizontal, Star, Copy, Trash2, Plus } from 'lucide-react'
-import { useAvailabilityStore, formatAvailability, type Schedule } from '@/lib/stores/availabilityStore'
+import { createFileRoute } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
+import { Plus, Copy, Trash2, Info, ChevronDown } from 'lucide-react'
+import { useAvailabilityStore, type Schedule } from '@/lib/stores/availabilityStore'
+import { DateOverrideModal } from '@/components/DateOverrideModal'
+import { DateOverrideList } from '@/components/DateOverrideList'
+
+interface TimeSlot {
+  startTime: Date
+  endTime: Date
+}
+
+interface DayAvailability {
+  enabled: boolean
+  timeSlots: TimeSlot[]
+}
+
+interface DateOverride {
+  id: string
+  dates: Date[]
+  isUnavailable: boolean
+  timeSlots: { startTime: string; endTime: string }[]
+}
 
 export const Route = createFileRoute('/availability/')({
   component: AvailabilityContent
 })
 
 function AvailabilityContent() {
-  const { schedules, addSchedule, deleteSchedule, setDefault, duplicateSchedule, error } = useAvailabilityStore()
-  const [showNewScheduleDialog, setShowNewScheduleDialog] = useState(false)
-  const [newScheduleName, setNewScheduleName] = useState('')
-  const [animationParentRef] = useAutoAnimate<HTMLUListElement>()
+  const { schedules, updateSchedule, addSchedule, fetchSchedule, saveSchedule, loading, error } = useAvailabilityStore()
 
-  const handleCreateSchedule = () => {
-    if (!newScheduleName.trim()) return
+  // Fetch schedule on component mount
+  useEffect(() => {
+    fetchSchedule()
+  }, [fetchSchedule])
 
-    addSchedule({
-      name: newScheduleName,
-      isDefault: false,
-      timeZone: 'UTC',
-      availability: [
-        {
-          days: [1, 2, 3, 4, 5], // Monday to Friday
-          startTime: new Date('1970-01-01T09:00:00.000Z'),
-          endTime: new Date('1970-01-01T17:00:00.000Z'),
-        }
-      ]
-    })
-    setShowNewScheduleDialog(false)
-    setNewScheduleName('')
-  }
+  // Get the schedule (should always exist after fetchSchedule)
+  const schedule = schedules.find(s => s.isDefault) || schedules[0]
 
-  if (schedules.length === 0) {
+  if (loading) {
     return (
       <div className="flex-1 overflow-hidden w-full">
         <div className="w-full px-4 py-8">
-          {/* Header */}
-          <div className="flex items-center justify-between md:mb-6 md:mt-0 lg:mb-8">
-            <header className="flex w-full max-w-full items-center truncate">
-              <div className="hidden w-full truncate ltr:mr-4 rtl:ml-4 md:block">
-                <h3 className="font-cal text-emphasis max-w-28 sm:max-w-72 md:max-w-80 inline truncate text-lg font-semibold tracking-wide sm:text-xl md:block xl:max-w-full text-xl">
-                  Availability
-                </h3>
-                <p className="text-default hidden text-sm md:block" data-testid="subtitle">
-                  Configure times when you are available for bookings.
-                </p>
-              </div>
-              <div className="flex-shrink-0 [-webkit-app-region:no-drag] md:relative md:bottom-auto md:right-auto">
-                <button
-                  onClick={() => setShowNewScheduleDialog(true)}
-                  className="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  New
-                </button>
-              </div>
-            </header>
-          </div>
-
-          {/* Empty State */}
-          <div className="flex justify-center">
-            <div className="flex w-full flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 p-12 text-center bg-white">
-              <Clock className="h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Add your first schedule
-              </h3>
-              <p className="text-sm text-gray-500 mb-6">
-                Schedule allows you to control available time slots that people can book you for.
-              </p>
-              <button
-                onClick={() => setShowNewScheduleDialog(true)}
-                className="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                New
-              </button>
-            </div>
+          <div className="text-center">
+            <p className="text-gray-500">Loading availability...</p>
           </div>
         </div>
-
-        {/* New Schedule Dialog */}
-        <NewScheduleDialog
-          show={showNewScheduleDialog}
-          onClose={() => {
-            setShowNewScheduleDialog(false)
-            setNewScheduleName('')
-          }}
-          scheduleName={newScheduleName}
-          onScheduleNameChange={setNewScheduleName}
-          onSubmit={handleCreateSchedule}
-        />
       </div>
     )
   }
+
+  if (!schedule) {
+    return (
+      <div className="flex-1 overflow-hidden w-full">
+        <div className="w-full px-4 py-8">
+          <div className="text-center">
+            <p className="text-gray-500">No availability schedule found.</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return <ScheduleEditor schedule={schedule} onUpdate={(id, updates) => {
+    const updatedSchedule = { ...schedule, ...updates }
+    saveSchedule(updatedSchedule)
+  }} />
+}
+
+function ScheduleEditor({
+  schedule,
+  onUpdate
+}: {
+  schedule: Schedule
+  onUpdate: (id: number, updates: Partial<Schedule>) => void
+}) {
+  const [localSchedule, setLocalSchedule] = useState<Schedule>(schedule)
+  const [hasChanges, setHasChanges] = useState(false)
+  const [dateOverrides, setDateOverrides] = useState<DateOverride[]>([])
+  const [showOverrideModal, setShowOverrideModal] = useState(false)
+  const [editingOverride, setEditingOverride] = useState<DateOverride | null>(null)
+
+  // Convert schedule to day-based structure for easier editing
+  const [weeklyAvailability, setWeeklyAvailability] = useState<DayAvailability[]>(() => {
+    const daysInit: DayAvailability[] = Array.from({ length: 7 }, (_, index) => ({
+      enabled: false,
+      timeSlots: []
+    }))
+
+    // Populate from existing schedule
+    schedule.availability.forEach(slot => {
+      slot.days.forEach(dayIndex => {
+        if (daysInit[dayIndex]) {
+          daysInit[dayIndex].enabled = true
+          daysInit[dayIndex].timeSlots.push({
+            startTime: slot.startTime,
+            endTime: slot.endTime
+          })
+        }
+      })
+    })
+
+    // Add default time slot for enabled days that don't have any
+    daysInit.forEach(day => {
+      if (day.enabled && day.timeSlots.length === 0) {
+        day.timeSlots.push({
+          startTime: new Date('1970-01-01T09:00:00.000Z'),
+          endTime: new Date('1970-01-01T17:00:00.000Z')
+        })
+      }
+    })
+
+    return daysInit
+  })
+
+  useEffect(() => {
+    setLocalSchedule(schedule)
+    setHasChanges(false)
+  }, [schedule])
+
+  const handleSave = () => {
+    // Convert back to schedule format
+    const availability = []
+    weeklyAvailability.forEach((day, dayIndex) => {
+      if (day.enabled) {
+        day.timeSlots.forEach(slot => {
+          availability.push({
+            days: [dayIndex],
+            startTime: slot.startTime,
+            endTime: slot.endTime
+          })
+        })
+      }
+    })
+
+    onUpdate(schedule.id, {
+      ...localSchedule,
+      availability
+    })
+    setHasChanges(false)
+  }
+
+  const toggleDay = (dayIndex: number, enabled: boolean) => {
+    const newWeeklyAvailability = [...weeklyAvailability]
+    newWeeklyAvailability[dayIndex] = {
+      enabled,
+      timeSlots: enabled ? [{
+        startTime: new Date('1970-01-01T09:00:00.000Z'),
+        endTime: new Date('1970-01-01T17:00:00.000Z')
+      }] : []
+    }
+    setWeeklyAvailability(newWeeklyAvailability)
+    setHasChanges(true)
+  }
+
+  const updateTimeSlot = (dayIndex: number, slotIndex: number, field: 'startTime' | 'endTime', value: Date) => {
+    const newWeeklyAvailability = [...weeklyAvailability]
+    newWeeklyAvailability[dayIndex].timeSlots[slotIndex][field] = value
+    setWeeklyAvailability(newWeeklyAvailability)
+    setHasChanges(true)
+  }
+
+  const addTimeSlot = (dayIndex: number) => {
+    const newWeeklyAvailability = [...weeklyAvailability]
+    newWeeklyAvailability[dayIndex].timeSlots.push({
+      startTime: new Date('1970-01-01T09:00:00.000Z'),
+      endTime: new Date('1970-01-01T17:00:00.000Z')
+    })
+    setWeeklyAvailability(newWeeklyAvailability)
+    setHasChanges(true)
+  }
+
+  const removeTimeSlot = (dayIndex: number, slotIndex: number) => {
+    const newWeeklyAvailability = [...weeklyAvailability]
+    newWeeklyAvailability[dayIndex].timeSlots.splice(slotIndex, 1)
+    if (newWeeklyAvailability[dayIndex].timeSlots.length === 0) {
+      newWeeklyAvailability[dayIndex].enabled = false
+    }
+    setWeeklyAvailability(newWeeklyAvailability)
+    setHasChanges(true)
+  }
+
+  const copyTimeToOtherDays = (dayIndex: number, slotIndex: number) => {
+    const sourceSlot = weeklyAvailability[dayIndex].timeSlots[slotIndex]
+    const newWeeklyAvailability = [...weeklyAvailability]
+
+    // Copy to all other enabled days
+    newWeeklyAvailability.forEach((day, index) => {
+      if (index !== dayIndex && day.enabled) {
+        day.timeSlots.push({
+          startTime: new Date(sourceSlot.startTime),
+          endTime: new Date(sourceSlot.endTime)
+        })
+      }
+    })
+
+    setWeeklyAvailability(newWeeklyAvailability)
+    setHasChanges(true)
+  }
+
+  const formatTime = (date: Date) => {
+    // Always use UTC to avoid timezone issues
+    const hours = date.getUTCHours().toString().padStart(2, '0')
+    const minutes = date.getUTCMinutes().toString().padStart(2, '0')
+    return `${hours}:${minutes}`
+  }
+
+  const parseTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':').map(Number)
+    return new Date(`1970-01-01T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00.000Z`)
+  }
+
+  const handleAddOverride = () => {
+    setEditingOverride(null)
+    setShowOverrideModal(true)
+  }
+
+  const handleEditOverride = (override: DateOverride) => {
+    setEditingOverride(override)
+    setShowOverrideModal(true)
+  }
+
+  const handleSaveOverride = (override: DateOverride) => {
+    if (editingOverride) {
+      setDateOverrides(dateOverrides.map(o => o.id === override.id ? override : o))
+    } else {
+      setDateOverrides([...dateOverrides, override])
+    }
+    setHasChanges(true)
+    setShowOverrideModal(false)
+    setEditingOverride(null)
+  }
+
+  const handleDeleteOverride = (id: string) => {
+    setDateOverrides(dateOverrides.filter(o => o.id !== id))
+    setHasChanges(true)
+  }
+
+  const days = [
+    { name: 'Sunday', index: 0 },
+    { name: 'Monday', index: 1 },
+    { name: 'Tuesday', index: 2 },
+    { name: 'Wednesday', index: 3 },
+    { name: 'Thursday', index: 4 },
+    { name: 'Friday', index: 5 },
+    { name: 'Saturday', index: 6 },
+  ]
 
   return (
     <div className="flex-1 overflow-hidden w-full">
@@ -107,248 +256,175 @@ function AvailabilityContent() {
               <h3 className="font-cal text-emphasis max-w-28 sm:max-w-72 md:max-w-80 inline truncate text-lg font-semibold tracking-wide sm:text-xl md:block xl:max-w-full text-xl">
                 Availability
               </h3>
-              <p className="text-default hidden text-sm md:block" data-testid="subtitle">
+              <p className="text-default hidden text-sm md:block text-gray-600">
                 Configure times when you are available for bookings.
               </p>
             </div>
-            <div className="flex-shrink-0 [-webkit-app-region:no-drag] md:relative md:bottom-auto md:right-auto">
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowNewScheduleDialog(true)}
-                className="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+                onClick={handleSave}
+                disabled={!hasChanges}
+                className="px-4 py-2 text-sm font-medium text-white bg-gray-900 border border-transparent rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Plus className="h-4 w-4 mr-2" />
-                New
+                Save
               </button>
             </div>
           </header>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-4 rounded-md bg-red-50 p-4 border border-red-200">
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-2">
+            {/* Weekly Schedule */}
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="space-y-0">
+                {days.map((day) => {
+                const dayAvailability = weeklyAvailability[day.index]
 
-        {/* Schedule List */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <ul className="divide-y divide-gray-200" data-testid="schedules" ref={animationParentRef}>
-            {schedules.map((schedule) => (
-              <ScheduleListItem
-                key={schedule.id}
-                schedule={schedule}
-                isDeletable={schedules.length !== 1}
-                onDelete={() => deleteSchedule(schedule.id)}
-                onSetDefault={() => setDefault(schedule.id)}
-                onDuplicate={() => duplicateSchedule(schedule.id)}
-              />
-            ))}
-          </ul>
-        </div>
-
-      </div>
-
-      {/* New Schedule Dialog */}
-      <NewScheduleDialog
-        show={showNewScheduleDialog}
-        onClose={() => {
-          setShowNewScheduleDialog(false)
-          setNewScheduleName('')
-        }}
-        scheduleName={newScheduleName}
-        onScheduleNameChange={setNewScheduleName}
-        onSubmit={handleCreateSchedule}
-      />
-    </div>
-  )
-}
-
-function ScheduleListItem({
-  schedule,
-  isDeletable,
-  onDelete,
-  onSetDefault,
-  onDuplicate,
-}: {
-  schedule: Schedule
-  isDeletable: boolean
-  onDelete: () => void
-  onSetDefault: () => void
-  onDuplicate: () => void
-}) {
-  const [showDropdown, setShowDropdown] = useState(false)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
-
-  useEffect(() => {
-    if (showDropdown && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect()
-      setDropdownPosition({
-        top: rect.bottom + window.scrollY + 8,
-        left: rect.right + window.scrollX - 192 // 192px = w-48
-      })
-    }
-  }, [showDropdown])
-
-  return (
-    <li key={schedule.id}>
-      <div className="hover:bg-muted flex items-center justify-between px-3 py-5 transition sm:px-4 hover:bg-gray-50">
-        <div className="group flex w-full items-center justify-between">
-          <Link
-            to={`/availability/${schedule.id}`}
-            className="flex-grow truncate text-sm"
-            title={schedule.name}
-          >
-            <div className="space-x-2 rtl:space-x-reverse">
-              <span className="text-emphasis truncate font-medium text-gray-900">{schedule.name}</span>
-              {schedule.isDefault && (
-                <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-                  Default
-                </span>
-              )}
-            </div>
-            <p className="text-subtle mt-1 text-gray-500">
-              {schedule.availability
-                .filter((availability) => !!availability.days.length)
-                .map((availability, index) => (
-                  <span key={index}>
-                    {formatAvailability(availability, true)}
-                    <br />
-                  </span>
-                ))}
-              <p className="my-1 flex items-center text-xs text-gray-500">
-                <Globe className="h-3.5 w-3.5 mr-1" />
-                UTC
-              </p>
-            </p>
-          </Link>
-        </div>
-
-        {/* Dropdown Menu */}
-        <div className="relative">
-          <button
-            ref={buttonRef}
-            data-testid="schedule-more"
-            type="button"
-            onClick={() => setShowDropdown(!showDropdown)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
-
-          {showDropdown && createPortal(
-            <>
-              {/* Backdrop */}
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowDropdown(false)}
-              />
-
-              {/* Dropdown */}
-              <div
-                className="fixed z-50 w-48 rounded-md bg-white py-1 shadow-lg focus:outline-none"
-                style={{
-                  top: `${dropdownPosition.top}px`,
-                  left: `${dropdownPosition.left}px`
-                }}
-              >
-                {!schedule.isDefault && (
-                  <button
-                    onClick={() => {
-                      onSetDefault()
-                      setShowDropdown(false)
-                    }}
-                    className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                return (
+                  <div
+                    key={day.index}
+                    className="flex items-start justify-between py-4 px-6 border-b border-gray-200 last:border-b-0"
                   >
-                    <Star className="h-4 w-4 mr-3" />
-                    Set as default
-                  </button>
-                )}
+                    <div className="flex items-center gap-3 min-w-0 flex-shrink-0">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={dayAvailability.enabled}
+                          onChange={(e) => toggleDay(day.index, e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-900"></div>
+                      </label>
+                      <span className="text-sm font-medium text-gray-900 w-20">
+                        {day.name}
+                      </span>
+                    </div>
+
+                    {dayAvailability.enabled && (
+                      <div className="flex-1 space-y-2">
+                        {dayAvailability.timeSlots.map((slot, slotIndex) => (
+                          <div key={slotIndex} className="flex items-center gap-2 justify-end">
+                            <input
+                              type="time"
+                              value={formatTime(slot.startTime)}
+                              onChange={(e) => updateTimeSlot(day.index, slotIndex, 'startTime', parseTime(e.target.value))}
+                              className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900"
+                            />
+                            <span className="text-gray-500">-</span>
+                            <input
+                              type="time"
+                              value={formatTime(slot.endTime)}
+                              onChange={(e) => updateTimeSlot(day.index, slotIndex, 'endTime', parseTime(e.target.value))}
+                              className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900"
+                            />
+                            <button
+                              onClick={() => addTimeSlot(day.index)}
+                              className="text-gray-400 hover:text-gray-600 p-1"
+                              title="Add time slot"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => copyTimeToOtherDays(day.index, slotIndex)}
+                              className="text-gray-400 hover:text-gray-600 p-1"
+                              title="Copy to other days"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </button>
+                            {dayAvailability.timeSlots.length > 1 && (
+                              <button
+                                onClick={() => removeTimeSlot(day.index, slotIndex)}
+                                className="text-gray-400 hover:text-red-600 p-1"
+                                title="Remove time slot"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              </div>
+            </div>
+
+            {/* Date Overrides */}
+            <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-medium text-gray-900">Date overrides</h3>
+                  <Info className="h-4 w-4 text-gray-400" />
+                </div>
                 <button
-                  onClick={() => {
-                    onDuplicate()
-                    setShowDropdown(false)
-                  }}
-                  className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  data-testid={`schedule-duplicate${schedule.id}`}
+                  onClick={handleAddOverride}
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
                 >
-                  <Copy className="h-4 w-4 mr-3" />
-                  Duplicate
-                </button>
-                <button
-                  onClick={() => {
-                    if (isDeletable) {
-                      onDelete()
-                    }
-                    setShowDropdown(false)
-                  }}
-                  disabled={!isDeletable}
-                  className="flex w-full items-center px-4 py-2 text-sm text-red-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                  data-testid="delete-schedule"
-                >
-                  <Trash2 className="h-4 w-4 mr-3" />
-                  Delete
+                  <Plus className="h-4 w-4" />
+                  Add an override
                 </button>
               </div>
-            </>,
-            document.body
-          )}
+              <p className="text-sm text-gray-600 mb-4">
+                Add dates when your availability changes from your daily hours.
+              </p>
+
+              {dateOverrides.length > 0 ? (
+                <DateOverrideList
+                  overrides={dateOverrides}
+                  onEdit={handleEditOverride}
+                  onDelete={handleDeleteOverride}
+                />
+              ) : (
+                <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-200 border-dashed">
+                  <p className="text-sm text-gray-500">No date overrides configured</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Timezone */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Timezone
+              </label>
+              <div className="relative">
+                <select
+                  value="UTC"
+                  onChange={(e) => {
+                    setLocalSchedule({ ...localSchedule, timeZone: "UTC" })
+                    setHasChanges(true)
+                  }}
+                  className="w-full appearance-none border border-gray-300 rounded-md px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900 focus:border-gray-900"
+                >
+                  <option value="UTC">UTC</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </li>
-  )
-}
 
-function NewScheduleDialog({
-  show,
-  onClose,
-  scheduleName,
-  onScheduleNameChange,
-  onSubmit
-}: {
-  show: boolean
-  onClose: () => void
-  scheduleName: string
-  onScheduleNameChange: (name: string) => void
-  onSubmit: () => void
-}) {
-  if (!show) return null
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-lg font-semibold mb-4">Add new schedule</h2>
-        <div className="mb-4">
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-            Name
-          </label>
-          <input
-            type="text"
-            id="name"
-            value={scheduleName}
-            onChange={(e) => onScheduleNameChange(e.target.value)}
-            placeholder="Default Schedule"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
-            required
-            autoFocus
-          />
-        </div>
-        <div className="flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onSubmit}
-            disabled={!scheduleName.trim()}
-            className="px-4 py-2 text-sm font-medium text-white bg-gray-900 border border-transparent rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Continue
-          </button>
-        </div>
-      </div>
+      {/* Date Override Modal */}
+      <DateOverrideModal
+        isOpen={showOverrideModal}
+        onClose={() => {
+          setShowOverrideModal(false)
+          setEditingOverride(null)
+        }}
+        onSave={handleSaveOverride}
+        existingOverride={editingOverride}
+        excludedDates={dateOverrides.flatMap(o =>
+          o.dates.map(date => {
+            const d = new Date(date)
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          })
+        )}
+      />
     </div>
   )
 }

@@ -55,3 +55,27 @@ type SlotsResponse struct {
 	Slots []TimeSlot `json:"slots"`
 	Total int        `json:"total_slots"`
 }
+
+// AvailabilitySlot represents a time slot for a specific set of days (frontend format)
+type AvailabilitySlot struct {
+	Days      []int     `json:"days" binding:"required"`      // Array of day indices (0=Sunday, 6=Saturday)
+	StartTime time.Time `json:"startTime" binding:"required"` // Start time as ISO date
+	EndTime   time.Time `json:"endTime" binding:"required"`   // End time as ISO date
+}
+
+// Schedule represents the complete schedule structure (frontend format)
+type Schedule struct {
+	ID           int                `json:"id"`
+	Name         string             `json:"name" binding:"required"`
+	IsDefault    bool               `json:"isDefault"`
+	TimeZone     string             `json:"timeZone" binding:"required"`
+	Availability []AvailabilitySlot `json:"availability" binding:"required"`
+}
+
+// UpdateScheduleRequest represents the request for updating the complete schedule
+type UpdateScheduleRequest struct {
+	Name         *string             `json:"name"`
+	IsDefault    *bool               `json:"isDefault"`
+	TimeZone     *string             `json:"timeZone"`
+	Availability *[]AvailabilitySlot `json:"availability"`
+}

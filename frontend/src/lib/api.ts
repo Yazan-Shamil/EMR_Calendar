@@ -166,3 +166,60 @@ export const deleteEvent = (id: string) =>
   apiRequest<{ message: string }>(`/api/v1/events/${id}`, {
     method: 'DELETE',
   })
+
+// Availability endpoints
+export interface AvailabilitySlot {
+  days: number[]
+  startTime: Date | string  // Can be either Date or ISO string from backend
+  endTime: Date | string    // Can be either Date or ISO string from backend
+}
+
+export interface Schedule {
+  id: number
+  name: string
+  isDefault: boolean
+  timeZone: string
+  availability: AvailabilitySlot[]
+}
+
+export interface ScheduleResponse {
+  schedule: Schedule
+}
+
+// Helper to parse schedule dates
+export const parseScheduleDates = (schedule: Schedule): Schedule => ({
+  ...schedule,
+  availability: schedule.availability.map(slot => ({
+    ...slot,
+    startTime: typeof slot.startTime === 'string' ? new Date(slot.startTime) : slot.startTime,
+    endTime: typeof slot.endTime === 'string' ? new Date(slot.endTime) : slot.endTime
+  }))
+})
+
+// Get availability schedule
+export const getAvailabilitySchedule = () =>
+  apiRequest<ScheduleResponse>('/api/v1/availability/schedule')
+
+// Create new availability schedule (for new users)
+export const createAvailabilitySchedule = (schedule: {
+  name: string
+  isDefault: boolean
+  timeZone: string
+  availability: AvailabilitySlot[]
+}) =>
+  apiRequest<ScheduleResponse>('/api/v1/availability/schedule', {
+    method: 'POST',
+    body: JSON.stringify(schedule),
+  })
+
+// Update existing availability schedule
+export const updateAvailabilitySchedule = (schedule: {
+  name: string
+  isDefault: boolean
+  timeZone: string
+  availability: AvailabilitySlot[]
+}) =>
+  apiRequest<ScheduleResponse>('/api/v1/availability/schedule', {
+    method: 'PUT',
+    body: JSON.stringify(schedule),
+  })
