@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useAutoAnimate } from '@formkit/auto-animate/react'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Clock, Globe, MoreHorizontal, Star, Copy, Trash2, Plus } from 'lucide-react'
 import { useAvailabilityStore, formatAvailability, type Schedule } from '@/lib/stores/availabilityStore'
 
@@ -176,6 +177,18 @@ function ScheduleListItem({
   onDuplicate: () => void
 }) {
   const [showDropdown, setShowDropdown] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    if (showDropdown && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.right + window.scrollX - 192 // 192px = w-48
+      })
+    }
+  }, [showDropdown])
 
   return (
     <li key={schedule.id}>
@@ -214,6 +227,7 @@ function ScheduleListItem({
         {/* Dropdown Menu */}
         <div className="relative">
           <button
+            ref={buttonRef}
             data-testid="schedule-more"
             type="button"
             onClick={() => setShowDropdown(!showDropdown)}
@@ -222,16 +236,22 @@ function ScheduleListItem({
             <MoreHorizontal className="h-4 w-4" />
           </button>
 
-          {showDropdown && (
+          {showDropdown && createPortal(
             <>
               {/* Backdrop */}
               <div
-                className="fixed inset-0 z-10"
+                className="fixed inset-0 z-40"
                 onClick={() => setShowDropdown(false)}
               />
 
               {/* Dropdown */}
-              <div className="absolute right-0 z-20 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+              <div
+                className="fixed z-50 w-48 rounded-md bg-white py-1 shadow-lg focus:outline-none"
+                style={{
+                  top: `${dropdownPosition.top}px`,
+                  left: `${dropdownPosition.left}px`
+                }}
+              >
                 {!schedule.isDefault && (
                   <button
                     onClick={() => {
@@ -270,7 +290,8 @@ function ScheduleListItem({
                   Delete
                 </button>
               </div>
-            </>
+            </>,
+            document.body
           )}
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { NavigationItem, MiniCalendar, Button, Icon, EventModal } from '@/components/cal-ui'
 import { useCalendarStore } from '@/lib/calendar/store'
-import { useTeamsStore } from '@/lib/stores/teamsStore'
+import { useTeamsStore, providerColors, getProviderColor, getVisibleProviders } from '@/lib/stores/teamsStore'
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Eye, EyeOff, LogOut } from 'lucide-react'
 import type { EventFormData } from '@/components/cal-ui/EventModal'
@@ -30,12 +30,20 @@ export function AppLayout({ children }: AppLayoutProps) {
     const startDateTime = dayjs(`${eventData.date} ${eventData.startTime}`);
     const endDateTime = dayjs(`${eventData.date} ${eventData.endTime}`);
 
+    // For demo purposes, assign a random provider from our list if not specified
+    const availableProviders = ['Dr. Ashley Martinez', 'Dr. David Wilson', 'Dr. Emily Davis', 'Dr. Jessica Moore', 'Dr. John Smith'];
+    const randomProvider = availableProviders[Math.floor(Math.random() * availableProviders.length)];
+    const createdBy = eventData.created_by || randomProvider;
+
     const newEvent = {
       id: Date.now().toString(),
       title: eventData.title || 'Untitled Event',
       start: startDateTime.toDate(),
       end: endDateTime.toDate(),
-      color: '#3b82f6',
+      color: getProviderColor(createdBy),
+      created_by: createdBy,
+      eventType: 'appointment' as const,
+      status: 'pending' as const,
     };
 
     setEvents([...events, newEvent]);
@@ -150,7 +158,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                             className="flex items-center justify-between group hover:bg-subtle rounded-md px-2 py-1"
                           >
                             <div className="flex items-center space-x-2 flex-1">
-                              <div className="w-2 h-2 rounded-full bg-gray-400" />
+                              <div
+                                className="w-3 h-3 rounded-full border"
+                                style={{ backgroundColor: providerColors[member.name] || '#6b7280' }}
+                              />
                               <span
                                 className={`text-xs truncate ${
                                   member.isVisible
