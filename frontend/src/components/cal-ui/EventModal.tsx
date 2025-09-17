@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import dayjs from 'dayjs';
 import { getUsersByRole, getCurrentUser, type User } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { providerColors } from '@/lib/stores/teamsStore';
 
 interface EventModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export interface EventFormData {
   timezone: string;
   patientId?: string;
   providerId?: string;
+  created_by?: string;
   status?: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   description?: string;
 }
@@ -56,6 +58,7 @@ export const EventModal: React.FC<EventModalProps> = ({
     timezone: 'America/New_York',
     patientId: '',
     providerId: '',
+    created_by: '',
     status: 'pending',
     description: ''
   });
@@ -113,6 +116,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           timezone: 'America/New_York',
           patientId: defaultPatientId,
           providerId: defaultProviderId,
+          created_by: defaultProviderQuery || currentUser?.full_name || '',
           status: 'pending',
           description: ''
         });
@@ -275,7 +279,11 @@ export const EventModal: React.FC<EventModalProps> = ({
   };
 
   const handleProviderSelect = (provider: User) => {
-    setFormData(prev => ({ ...prev, providerId: provider.id }));
+    setFormData(prev => ({
+      ...prev,
+      providerId: provider.id,
+      created_by: provider.full_name
+    }));
     setProviderSearchQuery(provider.full_name);
     setShowProviderDropdown(false);
   };

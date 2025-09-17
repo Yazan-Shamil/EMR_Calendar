@@ -36,35 +36,54 @@ interface TeamsActions {
   setError: (error: string | null) => void
 }
 
-// Generate some mock team data
-const mockTeams: Team[] = [
+// Provider colors mapping
+export const providerColors: Record<string, string> = {
+  'Dr. Ashley Martinez': '#ef4444', // red
+  'Dr. David Wilson': '#3b82f6', // blue
+  'Dr. Emily Davis': '#10b981', // green
+  'Dr. Jessica Moore': '#f59e0b', // amber
+  'Dr. John Smith': '#8b5cf6', // purple
+}
+
+// Default color for unknown providers
+export const defaultProviderColor = '#6b7280' // gray
+
+// Utility function to get provider color
+export const getProviderColor = (providerName: string): string => {
+  return providerColors[providerName] || defaultProviderColor
+}
+
+// Utility function to get visible providers
+export const getVisibleProviders = (teams: Team[]): string[] => {
+  return teams
+    .filter(team => team.isVisible)
+    .flatMap(team =>
+      team.members
+        .filter(member => member.isVisible)
+        .map(member => member.name)
+    )
+}
+
+// Hardcoded provider data for demo
+const providers: Team[] = [
   {
     id: 1,
-    name: 'Cardiology',
-    description: 'Heart specialists and cardiac care team',
-    color: '#3b82f6',
+    name: 'Providers',
+    description: 'Available medical providers',
+    color: '#6366f1',
     isVisible: true,
     members: [
-      { id: 1, name: 'Dr. John Smith', email: 'john.smith@hospital.com', role: 'admin', isVisible: true },
-      { id: 2, name: 'Dr. Sarah Johnson', email: 'sarah.johnson@hospital.com', role: 'member', isVisible: true },
-      { id: 3, name: 'Dr. Bill Wilson', email: 'bill.wilson@hospital.com', role: 'member', isVisible: false }
-    ]
-  },
-  {
-    id: 2,
-    name: 'Emergency Medicine',
-    description: 'Emergency department staff',
-    color: '#ef4444',
-    isVisible: true,
-    members: [
-      { id: 4, name: 'Dr. Emily Davis', email: 'emily.davis@hospital.com', role: 'admin', isVisible: true },
-      { id: 5, name: 'Dr. Michael Brown', email: 'michael.brown@hospital.com', role: 'member', isVisible: true }
+      { id: 1, name: 'Dr. Ashley Martinez', email: 'ashley.martinez@hospital.com', role: 'member', isVisible: true },
+      { id: 2, name: 'Dr. David Wilson', email: 'david.wilson@hospital.com', role: 'member', isVisible: true },
+      { id: 3, name: 'Dr. Emily Davis', email: 'emily.davis@hospital.com', role: 'member', isVisible: true },
+      { id: 4, name: 'Dr. Jessica Moore', email: 'jessica.moore@hospital.com', role: 'member', isVisible: true },
+      { id: 5, name: 'Dr. John Smith', email: 'john.smith@hospital.com', role: 'member', isVisible: true }
     ]
   }
 ]
 
 export const useTeamsStore = create<TeamsState & TeamsActions>((set, get) => ({
-  teams: mockTeams,
+  teams: providers,
   loading: false,
   error: null,
 

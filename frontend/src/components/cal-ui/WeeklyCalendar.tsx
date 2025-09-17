@@ -97,6 +97,32 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
         </div>
       </div>
 
+      {/* Day Headers */}
+      <div className="border-b border-subtle bg-white px-0">
+        <div className="grid" style={{ gridTemplateColumns: '80px repeat(7, 1fr)' }}>
+          {/* UTC timezone label above time column */}
+          <div className="h-12 border-r border-subtle flex items-center justify-center">
+            <span className="text-xs text-gray-500 font-medium">UTC</span>
+          </div>
+          {/* Day labels */}
+          {days.map((day, index) => (
+            <div key={index} className="h-12 border-r border-subtle last:border-r-0 flex flex-col items-center justify-center px-2">
+              <div className="text-xs text-default font-medium">
+                {day.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}
+              </div>
+              <div className={cn(
+                "text-lg font-semibold",
+                day.toDateString() === new Date().toDateString()
+                  ? "text-blue-600 bg-blue-100 rounded-full w-8 h-8 flex items-center justify-center"
+                  : "text-emphasis"
+              )}>
+                {day.getDate()}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Calendar Grid */}
       <CalendarGrid days={days} className="flex-1 min-h-0 overflow-hidden" />
     </div>
