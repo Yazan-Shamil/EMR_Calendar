@@ -153,10 +153,18 @@ func main() {
 		if availabilityHandler != nil {
 			availabilityRoutes := apiRoutes.Group("/availability")
 			{
+				// Schedule-based endpoints (bulk operations)
+				availabilityRoutes.GET("/schedule", availabilityHandler.GetSchedule)
+				availabilityRoutes.POST("/schedule", availabilityHandler.CreateSchedule)
+				availabilityRoutes.PUT("/schedule", availabilityHandler.UpdateSchedule)
+
+				// Individual availability rule endpoints (granular control)
 				availabilityRoutes.GET("", availabilityHandler.GetAvailability)
 				availabilityRoutes.POST("", availabilityHandler.CreateAvailability)
 				availabilityRoutes.PATCH("/:id", availabilityHandler.UpdateAvailability)
 				availabilityRoutes.DELETE("/:id", availabilityHandler.DeleteAvailability)
+
+				// Date override endpoints
 				availabilityRoutes.POST("/override", availabilityHandler.CreateOverride)
 				availabilityRoutes.POST("/check-conflicts", availabilityHandler.CheckConflicts)
 			}

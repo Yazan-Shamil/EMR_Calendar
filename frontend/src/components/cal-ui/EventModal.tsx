@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import dayjs from 'dayjs';
 import { getUsersByRole, getCurrentUser, type User } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { providerColors } from '@/lib/stores/teamsStore';
 
 interface EventModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export interface EventFormData {
   timezone: string;
   patientId?: string;
   providerId?: string;
+  created_by?: string;
   status?: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   description?: string;
 }
@@ -56,6 +58,7 @@ export const EventModal: React.FC<EventModalProps> = ({
     timezone: 'America/New_York',
     patientId: '',
     providerId: '',
+    created_by: '',
     status: 'pending',
     description: ''
   });
@@ -113,6 +116,7 @@ export const EventModal: React.FC<EventModalProps> = ({
           timezone: 'America/New_York',
           patientId: defaultPatientId,
           providerId: defaultProviderId,
+          created_by: defaultProviderQuery || currentUser?.full_name || '',
           status: 'pending',
           description: ''
         });
@@ -275,7 +279,11 @@ export const EventModal: React.FC<EventModalProps> = ({
   };
 
   const handleProviderSelect = (provider: User) => {
-    setFormData(prev => ({ ...prev, providerId: provider.id }));
+    setFormData(prev => ({
+      ...prev,
+      providerId: provider.id,
+      created_by: provider.full_name
+    }));
     setProviderSearchQuery(provider.full_name);
     setShowProviderDropdown(false);
   };
@@ -451,11 +459,15 @@ export const EventModal: React.FC<EventModalProps> = ({
                     <Input
                       type="text"
                       value={formData.startTime}
-                      onClick={() => setShowStartTimeDropdown(true)}
-                      className="w-20 text-xs cursor-pointer"
+                      onClick={() => (isEditing || mode === 'create') && setShowStartTimeDropdown(true)}
+                      className={cn(
+                        "w-20 text-xs",
+                        (isEditing || mode === 'create') ? "cursor-pointer" : "cursor-default bg-muted"
+                      )}
                       readOnly
+                      disabled={!(isEditing || mode === 'create')}
                     />
-                    {showStartTimeDropdown && (
+                    {showStartTimeDropdown && (isEditing || mode === 'create') && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 max-h-40 overflow-y-auto">
                         {timeOptions.map((time) => (
                           <button
@@ -478,11 +490,15 @@ export const EventModal: React.FC<EventModalProps> = ({
                     <Input
                       type="text"
                       value={formData.endTime}
-                      onClick={() => setShowEndTimeDropdown(true)}
-                      className="w-20 text-xs cursor-pointer"
+                      onClick={() => (isEditing || mode === 'create') && setShowEndTimeDropdown(true)}
+                      className={cn(
+                        "w-20 text-xs",
+                        (isEditing || mode === 'create') ? "cursor-pointer" : "cursor-default bg-muted"
+                      )}
                       readOnly
+                      disabled={!(isEditing || mode === 'create')}
                     />
-                    {showEndTimeDropdown && (
+                    {showEndTimeDropdown && (isEditing || mode === 'create') && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 max-h-40 overflow-y-auto">
                         {timeOptions.map((time) => (
                           <button
@@ -512,33 +528,41 @@ export const EventModal: React.FC<EventModalProps> = ({
                     placeholder="Search patient name"
                     value={patientSearchQuery}
                     onChange={(e) => {
-                      setPatientSearchQuery(e.target.value);
-                      setShowPatientDropdown(true);
-                      // Clear patientId if manually typing
-                      if (!allPatients.find(p => p.full_name === e.target.value)) {
-                        handleInputChange('patientId', '');
+                      if (isEditing || mode === 'create') {
+                        setPatientSearchQuery(e.target.value);
+                        setShowPatientDropdown(true);
+                        // Clear patientId if manually typing
+                        if (!allPatients.find(p => p.full_name === e.target.value)) {
+                          handleInputChange('patientId', '');
+                        }
                       }
                     }}
                     onFocus={() => {
-                      setShowPatientDropdown(true);
-                      // Show all patients when focusing on empty field
-                      if (patientSearchQuery === '') {
-                        setFilteredPatients(allPatients);
+                      if (isEditing || mode === 'create') {
+                        setShowPatientDropdown(true);
+                        // Show all patients when focusing on empty field
+                        if (patientSearchQuery === '') {
+                          setFilteredPatients(allPatients);
+                        }
                       }
                     }}
-                    className="w-full"
+                    className={cn(
+                      "w-full",
+                      !(isEditing || mode === 'create') && "bg-muted cursor-default text-muted-foreground"
+                    )}
+                    readOnly={!(isEditing || mode === 'create')}
                   />
-                  {loadingPatients && showPatientDropdown && (
+                  {loadingPatients && showPatientDropdown && (isEditing || mode === 'create') && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
                       Loading patients...
                     </div>
                   )}
-                  {!loadingPatients && showPatientDropdown && filteredPatients.length === 0 && patientSearchQuery.length > 0 && (
+                  {!loadingPatients && showPatientDropdown && (isEditing || mode === 'create') && filteredPatients.length === 0 && patientSearchQuery.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
                       No patients found
                     </div>
                   )}
-                  {!loadingPatients && showPatientDropdown && filteredPatients.length > 0 && (
+                  {!loadingPatients && showPatientDropdown && (isEditing || mode === 'create') && filteredPatients.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 max-h-40 overflow-y-auto">
                       {filteredPatients.map((patient) => (
                         <button
@@ -583,33 +607,41 @@ export const EventModal: React.FC<EventModalProps> = ({
                     placeholder="Search provider name"
                     value={providerSearchQuery}
                     onChange={(e) => {
-                      setProviderSearchQuery(e.target.value);
-                      setShowProviderDropdown(true);
-                      // Clear providerId if manually typing
-                      if (!allProviders.find(p => p.full_name === e.target.value)) {
-                        handleInputChange('providerId', '');
+                      if (isEditing || mode === 'create') {
+                        setProviderSearchQuery(e.target.value);
+                        setShowProviderDropdown(true);
+                        // Clear providerId if manually typing
+                        if (!allProviders.find(p => p.full_name === e.target.value)) {
+                          handleInputChange('providerId', '');
+                        }
                       }
                     }}
                     onFocus={() => {
-                      setShowProviderDropdown(true);
-                      // Show all providers when focusing on empty field
-                      if (providerSearchQuery === '') {
-                        setFilteredProviders(allProviders);
+                      if (isEditing || mode === 'create') {
+                        setShowProviderDropdown(true);
+                        // Show all providers when focusing on empty field
+                        if (providerSearchQuery === '') {
+                          setFilteredProviders(allProviders);
+                        }
                       }
                     }}
-                    className="w-full"
+                    className={cn(
+                      "w-full",
+                      !(isEditing || mode === 'create') && "bg-muted cursor-default text-muted-foreground"
+                    )}
+                    readOnly={!(isEditing || mode === 'create')}
                   />
-                  {loadingProviders && showProviderDropdown && (
+                  {loadingProviders && showProviderDropdown && (isEditing || mode === 'create') && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
                       Loading providers...
                     </div>
                   )}
-                  {!loadingProviders && showProviderDropdown && filteredProviders.length === 0 && providerSearchQuery.length > 0 && (
+                  {!loadingProviders && showProviderDropdown && (isEditing || mode === 'create') && filteredProviders.length === 0 && providerSearchQuery.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
                       No providers found
                     </div>
                   )}
-                  {!loadingProviders && showProviderDropdown && filteredProviders.length > 0 && (
+                  {!loadingProviders && showProviderDropdown && (isEditing || mode === 'create') && filteredProviders.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 max-h-40 overflow-y-auto">
                       {filteredProviders.map((provider) => (
                         <button
@@ -652,8 +684,12 @@ export const EventModal: React.FC<EventModalProps> = ({
                 <select
                   id="status"
                   value={formData.status || 'pending'}
-                  onChange={(e) => handleInputChange('status', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-subtle rounded-md bg-default text-emphasis focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => (isEditing || mode === 'create') && handleInputChange('status', e.target.value)}
+                  className={cn(
+                    "w-full px-3 py-2 text-sm border border-subtle rounded-md bg-default text-emphasis focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    !(isEditing || mode === 'create') && "bg-muted cursor-default text-muted-foreground border-muted"
+                  )}
+                  disabled={!(isEditing || mode === 'create')}
                 >
                   <option value="pending">Pending</option>
                   <option value="confirmed">Confirmed</option>
@@ -672,9 +708,13 @@ export const EventModal: React.FC<EventModalProps> = ({
                   id="description"
                   placeholder="Add appointment details..."
                   value={formData.description || ''}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-subtle rounded-md bg-default text-emphasis focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  onChange={(e) => (isEditing || mode === 'create') && handleInputChange('description', e.target.value)}
+                  className={cn(
+                    "w-full px-3 py-2 text-sm border border-subtle rounded-md bg-default text-emphasis focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none",
+                    !(isEditing || mode === 'create') && "bg-muted cursor-default text-muted-foreground border-muted"
+                  )}
                   rows={3}
+                  readOnly={!(isEditing || mode === 'create')}
                 />
               </div>
             </div>

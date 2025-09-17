@@ -1,5 +1,6 @@
 import { type Event } from '@/lib/api';
 import { type CalendarEvent } from './store';
+import { getProviderColor } from '@/lib/stores/teamsStore';
 
 // Convert backend Event to frontend CalendarEvent
 export function backendEventToCalendarEvent(event: Event): CalendarEvent {
@@ -8,10 +9,11 @@ export function backendEventToCalendarEvent(event: Event): CalendarEvent {
   const startDate = new Date(event.start_time);
   const endDate = new Date(event.end_time);
 
-  // Get color based on event type and status
+  // Get color based on provider - for demo, backend events get default color
+  // Frontend-created events will already have the right color set
   const color = event.event_type === 'block'
     ? '#6b7280' // Gray for blocks
-    : getEventColor('appointment', event.status);
+    : '#6b7280'; // Default gray for backend events in demo
 
   return {
     id: event.id,
