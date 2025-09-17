@@ -394,32 +394,235 @@ func (ah *AvailabilityHandler) validateAvailabilityRequest(req *CreateAvailabili
 	return nil
 }
 
-// CheckConflicts validates a time slot (simple yes/no)
-func (ah *AvailabilityHandler) CheckConflicts(c *gin.Context) {
+
+
+// GetSchedule retrieves the user's availability schedule in the frontend format
+func (ah *AvailabilityHandler) GetSchedule(c *gin.Context) {
 	userCtx, exists := auth.GetUserContext(c)
 	if !exists || userCtx == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context not found"})
 		return
 	}
 
-	var req struct {
-		ProviderID string    `json:"provider_id" binding:"required"`
-		StartTime  time.Time `json:"start_time" binding:"required"`
-		EndTime    time.Time `json:"end_time" binding:"required"`
-	}
+	// Get all recurring availability rules for the user
+	query := `
+		SELECT id, user_id, day_of_week, start_time, end_time, override_date, is_available, created_at, updated_at
+		FROM availability
+		WHERE user_id = $1 AND override_date IS NULL
+		ORDER BY day_of_week ASC`
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
-		return
-	}
-
-	conflictChecker := NewConflictChecker(ah.db)
-	result, err := conflictChecker.CheckTimeSlotAvailability(req.ProviderID, req.StartTime, req.EndTime)
-
+	rows, err := ah.db.Query(query, userCtx.UserID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check conflicts"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch availability", "details": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var availabilities []Availability
+	for rows.Next() {
+		var availability Availability
+		err := rows.Scan(
+			&availability.ID, &availability.UserID, &availability.DayOfWeek,
+			&availability.StartTime, &availability.EndTime, &availability.OverrideDate,
+			&availability.IsAvailable, &availability.CreatedAt, &availability.UpdatedAt,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to scan availability: %v", err)})
+			return
+		}
+		availabilities = append(availabilities, availability)
+	}
+
+	// Convert to frontend format
+	schedule := convertToScheduleFormat(availabilities, userCtx.UserID)
+	c.JSON(http.StatusOK, gin.H{"schedule": schedule})
+}
+
+// UpdateSchedule updates the complete availability schedule
+func (ah *AvailabilityHandler) UpdateSchedule(c *gin.Context) {
+	userCtx, exists := auth.GetUserContext(c)
+	if !exists || userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"conflict_check": result})
+	var req UpdateScheduleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	// Start transaction
+	tx, err := ah.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	// If availability is being updated, replace all existing recurring rules
+	if req.Availability != nil {
+		// Delete all existing recurring availability rules
+		deleteQuery := `DELETE FROM availability WHERE user_id = $1 AND override_date IS NULL`
+		_, err = tx.Exec(deleteQuery, userCtx.UserID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete existing availability"})
+			return
+		}
+
+		// Insert new availability rules
+		for _, slot := range *req.Availability {
+			for _, day := range slot.Days {
+				availabilityID := uuid.New().String()
+
+				// Extract time from frontend format (1970-01-01T09:00:00.000Z)
+				startTimeStr := slot.StartTime.UTC().Format("15:04:05")
+				endTimeStr := slot.EndTime.UTC().Format("15:04:05")
+
+				insertQuery := `
+					INSERT INTO availability (id, user_id, day_of_week, start_time, end_time, override_date, is_available, created_at, updated_at)
+					VALUES ($1, $2, $3, $4, $5, NULL, true, $6, $7)`
+
+				now := time.Now().UTC()
+				_, err = tx.Exec(
+					insertQuery,
+					availabilityID, userCtx.UserID, day, startTimeStr, endTimeStr, now, now,
+				)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create availability rule", "details": err.Error()})
+					return
+				}
+			}
+		}
+	}
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	// Return updated schedule
+	ah.GetSchedule(c)
+}
+
+// CreateSchedule creates an initial availability schedule for new users
+func (ah *AvailabilityHandler) CreateSchedule(c *gin.Context) {
+	userCtx, exists := auth.GetUserContext(c)
+	if !exists || userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context not found"})
+		return
+	}
+
+	var req Schedule
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "details": err.Error()})
+		return
+	}
+
+	// Check if user already has availability records
+	checkQuery := `SELECT COUNT(*) FROM availability WHERE user_id = $1 AND override_date IS NULL`
+	var count int
+	err := ah.db.QueryRow(checkQuery, userCtx.UserID).Scan(&count)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing availability"})
+		return
+	}
+
+	if count > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "User already has availability schedule. Use PUT to update."})
+		return
+	}
+
+	// Start transaction
+	tx, err := ah.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	// Insert new availability rules
+	for _, slot := range req.Availability {
+		for _, day := range slot.Days {
+			availabilityID := uuid.New().String()
+
+			// Extract time from frontend format (1970-01-01T09:00:00.000Z)
+			startTimeStr := slot.StartTime.UTC().Format("15:04:05")
+			endTimeStr := slot.EndTime.UTC().Format("15:04:05")
+
+			insertQuery := `
+				INSERT INTO availability (id, user_id, day_of_week, start_time, end_time, override_date, is_available, created_at, updated_at)
+				VALUES ($1, $2, $3, $4, $5, NULL, true, $6, $7)`
+
+			now := time.Now().UTC()
+			_, err = tx.Exec(
+				insertQuery,
+				availabilityID, userCtx.UserID, day, startTimeStr, endTimeStr, now, now,
+			)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create availability rule", "details": err.Error()})
+				return
+			}
+		}
+	}
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	// Return created schedule
+	ah.GetSchedule(c)
+}
+
+// convertToScheduleFormat converts database availability records to frontend schedule format
+func convertToScheduleFormat(availabilities []Availability, userID string) Schedule {
+	// Group availability rules by time slots
+	timeSlotMap := make(map[string][]int) // key: "startTime-endTime", value: array of days
+
+	for _, av := range availabilities {
+		if av.DayOfWeek != nil && av.StartTime != nil && av.EndTime != nil && av.IsAvailable {
+			key := *av.StartTime + "-" + *av.EndTime
+			timeSlotMap[key] = append(timeSlotMap[key], *av.DayOfWeek)
+		}
+	}
+
+	// Convert to AvailabilitySlot format
+	var slots []AvailabilitySlot
+	for timeKey, days := range timeSlotMap {
+		parts := strings.Split(timeKey, "-")
+		if len(parts) != 2 {
+			continue
+		}
+
+		// Parse times and convert to frontend format (1970-01-01 date with time)
+		startTime, err := time.Parse("15:04:05", parts[0])
+		if err != nil {
+			continue
+		}
+		endTime, err := time.Parse("15:04:05", parts[1])
+		if err != nil {
+			continue
+		}
+
+		// Convert to 1970-01-01 UTC format expected by frontend
+		frontendStartTime := time.Date(1970, 1, 1, startTime.Hour(), startTime.Minute(), startTime.Second(), 0, time.UTC)
+		frontendEndTime := time.Date(1970, 1, 1, endTime.Hour(), endTime.Minute(), endTime.Second(), 0, time.UTC)
+
+		slots = append(slots, AvailabilitySlot{
+			Days:      days,
+			StartTime: frontendStartTime,
+			EndTime:   frontendEndTime,
+		})
+	}
+
+	return Schedule{
+		ID:           1, // Fixed ID since we only have one schedule now
+		Name:         "Working Hours",
+		IsDefault:    true,
+		TimeZone:     "UTC",
+		Availability: slots,
+	}
 }

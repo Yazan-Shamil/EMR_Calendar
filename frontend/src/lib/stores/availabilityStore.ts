@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { apiRequest } from '../api'
 
 export interface AvailabilitySlot {
   days: number[] // 0 = Sunday, 1 = Monday, etc.
@@ -18,6 +19,7 @@ interface AvailabilityState {
   schedules: Schedule[]
   loading: boolean
   error: string | null
+  isDataFromBackend: boolean // Track whether data comes from backend or is mock data
 }
 
 interface AvailabilityActions {
@@ -28,6 +30,8 @@ interface AvailabilityActions {
   duplicateSchedule: (id: number) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
+  fetchSchedule: () => Promise<void>
+  saveSchedule: (schedule: Schedule) => Promise<void>
 }
 
 type AvailabilityStore = AvailabilityState & AvailabilityActions
@@ -38,7 +42,7 @@ const initialSchedules: Schedule[] = [
     id: 1,
     name: 'Working Hours',
     isDefault: true,
-    timeZone: 'America/New_York',
+    timeZone: 'UTC',
     availability: [
       {
         days: [1, 2, 3, 4, 5], // Monday to Friday
@@ -46,26 +50,14 @@ const initialSchedules: Schedule[] = [
         endTime: new Date('1970-01-01T17:00:00.000Z'),
       }
     ]
-  },
-  {
-    id: 2,
-    name: 'Evening Hours',
-    isDefault: false,
-    timeZone: 'America/New_York',
-    availability: [
-      {
-        days: [1, 2, 3, 4, 5], // Monday to Friday
-        startTime: new Date('1970-01-01T18:00:00.000Z'),
-        endTime: new Date('1970-01-01T22:00:00.000Z'),
-      }
-    ]
   }
 ]
 
 export const useAvailabilityStore = create<AvailabilityStore>((set, get) => ({
-  schedules: initialSchedules,
+  schedules: [],
   loading: false,
   error: null,
+  isDataFromBackend: false,
 
   addSchedule: (scheduleData) => {
     const schedules = get().schedules
@@ -132,6 +124,134 @@ export const useAvailabilityStore = create<AvailabilityStore>((set, get) => ({
 
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+
+  fetchSchedule: async () => {
+    set({ loading: true, error: null })
+    try {
+      const { data, error } = await apiRequest('/api/v1/availability/schedule')
+
+      if (error) {
+        throw new Error(error)
+      }
+
+      const schedule = data?.schedule
+
+      if (schedule && schedule.availability && schedule.availability.length > 0) {
+        // Parse date strings to Date objects
+        const parsedSchedule = {
+          ...schedule,
+          availability: schedule.availability.map((slot: any) => ({
+            ...slot,
+            startTime: new Date(slot.startTime),
+            endTime: new Date(slot.endTime)
+          }))
+        }
+        // User has existing availability data
+        set({
+          schedules: [parsedSchedule],
+          loading: false,
+          isDataFromBackend: true
+        })
+      } else {
+        // New user - no availability data exists
+        // Create empty schedule with all days off
+        const emptySchedule = {
+          id: 1,
+          name: 'Working Hours',
+          isDefault: true,
+          timeZone: 'UTC',
+          availability: [] // Start with no availability slots (all days off)
+        }
+        set({
+          schedules: [emptySchedule],
+          loading: false,
+          isDataFromBackend: false
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch schedule:', error)
+      // For new users or network errors, start with empty schedule
+      const emptySchedule = {
+        id: 1,
+        name: 'Working Hours',
+        isDefault: true,
+        timeZone: 'UTC',
+        availability: []
+      }
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch schedule',
+        loading: false,
+        schedules: [emptySchedule],
+        isDataFromBackend: false
+      })
+    }
+  },
+
+  saveSchedule: async (schedule: Schedule) => {
+    set({ loading: true, error: null })
+    try {
+      // Determine if this is a new user or existing user based on backend data flag
+      const state = get()
+      const isNewUser = !state.isDataFromBackend
+
+      // Use POST for new users, PUT for existing users
+      const method = isNewUser ? 'POST' : 'PUT'
+
+      let { data, error } = await apiRequest('/api/v1/availability/schedule', {
+        method,
+        body: JSON.stringify({
+          name: schedule.name,
+          isDefault: schedule.isDefault,
+          timeZone: schedule.timeZone,
+          availability: schedule.availability
+        }),
+      })
+
+      // If POST failed with conflict, try PUT (user has existing data)
+      if (error && method === 'POST' && error.includes('409')) {
+        const putResult = await apiRequest('/api/v1/availability/schedule', {
+          method: 'PUT',
+          body: JSON.stringify({
+            name: schedule.name,
+            isDefault: schedule.isDefault,
+            timeZone: schedule.timeZone,
+            availability: schedule.availability
+          }),
+        })
+        data = putResult.data
+        error = putResult.error
+      }
+
+      if (error) {
+        throw new Error(error)
+      }
+
+      const updatedSchedule = data?.schedule
+
+      if (updatedSchedule) {
+        // Parse date strings to Date objects
+        const parsedSchedule = {
+          ...updatedSchedule,
+          availability: updatedSchedule.availability?.map((slot: any) => ({
+            ...slot,
+            startTime: new Date(slot.startTime),
+            endTime: new Date(slot.endTime)
+          })) || []
+        }
+        set({
+          schedules: [parsedSchedule],
+          loading: false,
+          isDataFromBackend: true // Mark as backend data after successful save
+        })
+      }
+    } catch (error) {
+      console.error('Failed to save schedule:', error)
+      set({
+        error: error instanceof Error ? error.message : 'Failed to save schedule',
+        loading: false
+      })
+    }
+  },
 }))
 
 // Utility functions for formatting

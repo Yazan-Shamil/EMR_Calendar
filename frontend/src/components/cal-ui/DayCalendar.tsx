@@ -95,6 +95,30 @@ export const DayCalendar: React.FC<DayCalendarProps> = ({
         </div>
       </div>
 
+      {/* Day Header */}
+      <div className="border-b border-subtle bg-white px-0">
+        <div className="grid" style={{ gridTemplateColumns: '80px 1fr' }}>
+          {/* UTC timezone label above time column */}
+          <div className="h-12 border-r border-subtle flex items-center justify-center">
+            <span className="text-xs text-gray-500 font-medium">UTC</span>
+          </div>
+          {/* Day label */}
+          <div className="h-12 border-r border-subtle last:border-r-0 flex flex-col items-center justify-center px-2">
+            <div className="text-xs text-default font-medium">
+              {dayjs(currentDate).format('ddd').toUpperCase()}
+            </div>
+            <div className={cn(
+              "text-lg font-semibold",
+              dayjs(currentDate).isSame(dayjs(), 'day')
+                ? "text-blue-600 bg-blue-100 rounded-full w-8 h-8 flex items-center justify-center"
+                : "text-emphasis"
+            )}>
+              {dayjs(currentDate).date()}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Calendar Grid - Single Day */}
       <CalendarGrid days={[currentDate]} className="flex-1 min-h-0" />
     </div>

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import dayjs from 'dayjs';
+import { getVisibleProviders } from '@/lib/stores/teamsStore';
 
 export interface CalendarEvent {
   id: string;
@@ -47,6 +48,7 @@ interface CalendarActions {
   navigateNext: () => void;
   navigatePrevious: () => void;
   navigateToday: () => void;
+  getFilteredEvents: (teams: any[]) => CalendarEvent[];
 }
 
 export const useCalendarStore = create<CalendarState & CalendarActions>((set) => ({
@@ -98,4 +100,23 @@ export const useCalendarStore = create<CalendarState & CalendarActions>((set) =>
   }),
 
   navigateToday: () => set({ currentDate: new Date() }),
+
+  getFilteredEvents: (teams) => {
+    const state = useCalendarStore.getState();
+    const visibleProviders = getVisibleProviders(teams);
+    const hardcodedProviders = ['Dr. Ashley Martinez', 'Dr. David Wilson', 'Dr. Emily Davis', 'Dr. Jessica Moore', 'Dr. John Smith'];
+
+    return state.events.filter(event => {
+      // For demo: if event has no created_by field or is from backend, always show
+      if (!event.created_by) return true;
+
+      // If it's one of our hardcoded providers (frontend created), only show if visible
+      if (hardcodedProviders.includes(event.created_by)) {
+        return visibleProviders.includes(event.created_by);
+      }
+
+      // For any other provider/user (backend events), always show
+      return true;
+    });
+  },
 }));

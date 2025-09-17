@@ -5,6 +5,7 @@ import { Icon } from './Icon';
 import { cn } from '@/lib/utils';
 import { useCalendarStore } from '@/lib/calendar/store';
 import { isToday } from '@/lib/calendar/utils';
+import { useNavigate } from '@tanstack/react-router';
 
 interface MiniCalendarProps {
   className?: string;
@@ -15,7 +16,8 @@ export const MiniCalendar: React.FC<MiniCalendarProps> = ({
   className,
   onDateSelect,
 }) => {
-  const { currentDate, selectedDate, setCurrentDate, setSelectedDate } = useCalendarStore();
+  const { currentDate, selectedDate, setCurrentDate, setSelectedDate, setView } = useCalendarStore();
+  const navigate = useNavigate();
   
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -47,6 +49,11 @@ export const MiniCalendar: React.FC<MiniCalendarProps> = ({
   const handleDateClick = (day: number) => {
     const newDate = new Date(year, month, day);
     setSelectedDate(newDate);
+    setCurrentDate(newDate);
+    setView('day');
+
+    navigate({ to: '/home' });
+
     onDateSelect?.(newDate);
   };
   
@@ -81,18 +88,15 @@ export const MiniCalendar: React.FC<MiniCalendarProps> = ({
           onClick={() => handleDateClick(day)}
           className={cn(
             'w-7 h-7 text-xs rounded-md hover:bg-subtle transition-colors',
-            'flex items-center justify-center relative',
+            'flex items-center justify-center relative border',
             {
-              'bg-brand-default text-brand': isSelected(day),
-              'bg-subtle': isTodayDate(day) && !isSelected(day),
-              'text-emphasis hover:bg-subtle': !isTodayDate(day) && !isSelected(day),
+              'bg-brand-default text-brand border-brand-default': isSelected(day),
+              'border-gray-800 bg-subtle text-emphasis': isTodayDate(day) && !isSelected(day),
+              'border-transparent text-emphasis hover:bg-subtle': !isTodayDate(day) && !isSelected(day),
             }
           )}
         >
           {day}
-          {isTodayDate(day) && !isSelected(day) && (
-            <div className="absolute bottom-0.5 w-0.5 h-0.5 bg-brand-default rounded-full" />
-          )}
         </button>
       );
     }

@@ -2,6 +2,7 @@ import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import dayjs from 'dayjs';
 import { cn } from '@/lib/utils';
 import { useCalendarStore, type CalendarEvent } from '@/lib/calendar/store';
+import { useTeamsStore } from '@/lib/stores/teamsStore';
 import { formatTime, isToday } from '@/lib/calendar/utils';
 import { useCalendarDrag } from '@/lib/calendar/useCalendarDrag';
 import {
@@ -30,7 +31,15 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
     deleteEvent,
     draftEvent,
     setDraftEvent,
+    getFilteredEvents,
   } = useCalendarStore();
+
+  const { teams } = useTeamsStore();
+
+  // Get filtered events based on visible providers
+  const filteredEvents = useMemo(() => {
+    return getFilteredEvents(teams);
+  }, [events, teams, getFilteredEvents]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -48,7 +57,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
   }, [startHour, endHour]);
 
   const getEventsForDay = (day: Date): CalendarEvent[] => {
-    return events.filter(event => {
+    return filteredEvents.filter(event => {
       const eventDay = dayjs(event.start).startOf('day');
       const targetDay = dayjs(day).startOf('day');
       return eventDay.isSame(targetDay);
