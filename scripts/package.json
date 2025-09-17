@@ -1,0 +1,12 @@
+{
+  "name": "emr-test-users",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "generate": "node generate-test-users.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "dotenv": "^16.4.5"
+  }
+}
