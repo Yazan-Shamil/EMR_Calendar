@@ -55,3 +55,10 @@ type SlotsResponse struct {
 	Slots []TimeSlot `json:"slots"`
 	Total int        `json:"total_slots"`
 }
+
+// ConflictResult represents the result of a conflict check
+type ConflictResult struct {
+	HasConflict  bool   `json:"has_conflict"`
+	ConflictType string `json:"conflict_type,omitempty"` // "date_override", "no_availability", "outside_hours"
+	Message      string `json:"message"`
+}
