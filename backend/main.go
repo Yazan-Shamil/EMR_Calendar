@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"emr-calendar-backend/auth"
+	"emr-calendar-backend/availability"
 	"emr-calendar-backend/config"
 	"emr-calendar-backend/database"
 	"emr-calendar-backend/events"
@@ -31,6 +32,7 @@ func main() {
 	// Database connection (optional for auth proxy)
 	var userHandler *auth.UserHandler
 	var eventsHandler *events.EventsHandler
+	var availabilityHandler *availability.AvailabilityHandler
 	var db *sql.DB
 	if cfg.DatabaseURL != "" {
 		var err error
@@ -42,6 +44,7 @@ func main() {
 			defer db.Close()
 			userHandler = auth.NewUserHandler(db)
 			eventsHandler = events.NewEventsHandler(db)
+			availabilityHandler = availability.NewAvailabilityHandler(db)
 			log.Println("Database connected successfully")
 		}
 	} else {
@@ -146,9 +149,23 @@ func main() {
 			}
 		}
 
-		// Future endpoints for availability, slots, etc.
-		// availabilityRoutes := apiRoutes.Group("/availability")
-		// slotsRoutes := apiRoutes.Group("/slots")
+		// Availability routes (only if database is connected)
+		if availabilityHandler != nil {
+			availabilityRoutes := apiRoutes.Group("/availability")
+			{
+				availabilityRoutes.GET("", availabilityHandler.GetAvailability)
+				availabilityRoutes.POST("", availabilityHandler.CreateAvailability)
+				availabilityRoutes.PATCH("/:id", availabilityHandler.UpdateAvailability)
+				availabilityRoutes.DELETE("/:id", availabilityHandler.DeleteAvailability)
+				availabilityRoutes.POST("/override", availabilityHandler.CreateOverride)
+			}
+
+			// Slots endpoint for available time slots
+			slotsRoutes := apiRoutes.Group("/slots")
+			{
+				slotsRoutes.GET("", availabilityHandler.GetSlots)
+			}
+		}
 	}
 
 	// Start server
