@@ -158,6 +158,7 @@ func main() {
 				availabilityRoutes.PATCH("/:id", availabilityHandler.UpdateAvailability)
 				availabilityRoutes.DELETE("/:id", availabilityHandler.DeleteAvailability)
 				availabilityRoutes.POST("/override", availabilityHandler.CreateOverride)
+				availabilityRoutes.POST("/check-conflicts", availabilityHandler.CheckConflicts)
 			}
 
 			// Slots endpoint for available time slots

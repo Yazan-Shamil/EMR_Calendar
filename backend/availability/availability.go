@@ -393,3 +393,33 @@ func (ah *AvailabilityHandler) validateAvailabilityRequest(req *CreateAvailabili
 
 	return nil
 }
+
+// CheckConflicts validates a time slot (simple yes/no)
+func (ah *AvailabilityHandler) CheckConflicts(c *gin.Context) {
+	userCtx, exists := auth.GetUserContext(c)
+	if !exists || userCtx == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context not found"})
+		return
+	}
+
+	var req struct {
+		ProviderID string    `json:"provider_id" binding:"required"`
+		StartTime  time.Time `json:"start_time" binding:"required"`
+		EndTime    time.Time `json:"end_time" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request", "details": err.Error()})
+		return
+	}
+
+	conflictChecker := NewConflictChecker(ah.db)
+	result, err := conflictChecker.CheckTimeSlotAvailability(req.ProviderID, req.StartTime, req.EndTime)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check conflicts"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"conflict_check": result})
+}
