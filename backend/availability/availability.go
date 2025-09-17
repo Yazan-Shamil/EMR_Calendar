@@ -431,7 +431,6 @@ func (ah *AvailabilityHandler) GetSchedule(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User context not found"})
 		return
 	}
-
 	// Get all recurring availability rules for the user
 	query := `
 		SELECT id, user_id, day_of_week, start_time, end_time, override_date, is_available, created_at, updated_at
