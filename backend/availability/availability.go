@@ -394,6 +394,8 @@ func (ah *AvailabilityHandler) validateAvailabilityRequest(req *CreateAvailabili
 	return nil
 }
 
+
+
 // GetSchedule retrieves the user's availability schedule in the frontend format
 func (ah *AvailabilityHandler) GetSchedule(c *gin.Context) {
 	userCtx, exists := auth.GetUserContext(c)

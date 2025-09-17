@@ -166,6 +166,7 @@ func main() {
 
 				// Date override endpoints
 				availabilityRoutes.POST("/override", availabilityHandler.CreateOverride)
+				availabilityRoutes.POST("/check-conflicts", availabilityHandler.CheckConflicts)
 			}
 
 			// Slots endpoint for available time slots
