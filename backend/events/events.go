@@ -3,6 +3,7 @@ package events
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -88,6 +89,9 @@ func (eh *EventsHandler) GetEvents(c *gin.Context) {
 
 	rows, err := eh.db.Query(query, args...)
 	if err != nil {
+		log.Printf("Database query error in GetEvents: %v", err)
+		log.Printf("Query: %s", query)
+		log.Printf("Args: %v", args)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch events"})
 		return
 	}
@@ -106,6 +110,11 @@ func (eh *EventsHandler) GetEvents(c *gin.Context) {
 			return
 		}
 		events = append(events, event)
+	}
+
+	// If events is nil, initialize as empty array to ensure proper JSON response
+	if events == nil {
+		events = []auth.Event{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

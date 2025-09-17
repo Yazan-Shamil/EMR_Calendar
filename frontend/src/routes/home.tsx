@@ -39,13 +39,20 @@ function HomePage() {
         })
 
         if (error) {
-          setError(error)
+          // Only show error for actual failures, not empty results
           console.error('Failed to fetch events:', error)
-          // Use empty array if fetch fails
+          // Don't show error message for now - just use empty array
+          // This prevents showing errors when user has no events
           setEvents([])
+          // Only set error for actual network/server issues
+          if (error.includes('network') || error.includes('500') || error.includes('Network')) {
+            setError('Unable to connect to server. Please try again later.')
+          }
         } else if (data) {
           const calendarEvents = data.events.map(backendEventToCalendarEvent)
           setEvents(calendarEvents)
+          // Clear any previous errors on successful fetch
+          setError(null)
         }
       } catch (err) {
         console.error('Error fetching events:', err)

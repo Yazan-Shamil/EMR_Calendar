@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,9 +12,15 @@ import (
 
 // SupabaseAuthMiddleware creates middleware that validates Supabase JWT tokens
 func SupabaseAuthMiddleware(jwtSecret string) gin.HandlerFunc {
+	return SupabaseAuthMiddlewareWithDB(jwtSecret, nil)
+}
+
+// SupabaseAuthMiddlewareWithDB creates middleware that validates Supabase JWT tokens and fetches user role from DB
+func SupabaseAuthMiddlewareWithDB(jwtSecret string, db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get the Authorization header
 		authHeader := c.GetHeader("Authorization")
+		fmt.Printf("Auth header received: %s\n", authHeader)
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
 			c.Abort()
@@ -47,7 +54,20 @@ func SupabaseAuthMiddleware(jwtSecret string) gin.HandlerFunc {
 		userContext := &UserContext{
 			UserID:   claims.Sub,
 			Email:    claims.Email,
-			UserRole: claims.UserRole,
+			UserRole: claims.UserRole, // This might be empty from Supabase JWT
+		}
+
+		// If we have a DB connection and UserRole is empty, fetch from database
+		if db != nil && userContext.UserRole == "" {
+			var role string
+			err := db.QueryRow("SELECT role FROM users WHERE id = $1", userContext.UserID).Scan(&role)
+			if err == nil {
+				userContext.UserRole = role
+			} else {
+				// Log the error for debugging
+				fmt.Printf("Failed to fetch user role for ID %s: %v\n", userContext.UserID, err)
+			}
+			// If user not found in DB, don't fail - let the handler decide
 		}
 
 		c.Set("user", userContext)

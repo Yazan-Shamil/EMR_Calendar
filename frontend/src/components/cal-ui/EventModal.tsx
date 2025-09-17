@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Clock, User as UserIcon, Edit2, Trash2 } from 'lucide-react';
+import { X, Clock, User as UserIcon, Edit2, Trash2, FileText, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './Button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,8 @@ export interface EventFormData {
   timezone: string;
   patientId?: string;
   providerId?: string;
+  status?: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  description?: string;
 }
 
 export const EventModal: React.FC<EventModalProps> = ({
@@ -49,9 +51,10 @@ export const EventModal: React.FC<EventModalProps> = ({
     startTime: '11:30',
     endTime: '12:30',
     timezone: 'America/New_York',
-    location: '',
     patientId: '',
-    providerId: ''
+    providerId: '',
+    status: 'pending',
+    description: ''
   });
   const openTimeRef = useRef<number>(0);
 
@@ -65,11 +68,11 @@ export const EventModal: React.FC<EventModalProps> = ({
         setFormData(existingEvent);
         // Find and set patient/provider names from IDs
         if (existingEvent.patientId) {
-          const patient = patients.find(p => p.id === existingEvent.patientId);
+          const patient = allPatients.find(p => p.id === existingEvent.patientId);
           setPatientSearchQuery(patient?.full_name || '');
         }
         if (existingEvent.providerId || existingEvent.created_by) {
-          const provider = providers.find(p => p.id === (existingEvent.providerId || existingEvent.created_by));
+          const provider = allProviders.find(p => p.id === (existingEvent.providerId || existingEvent.created_by));
           setProviderSearchQuery(provider?.full_name || '');
         }
         setIsEditing(mode === 'edit');
@@ -86,9 +89,10 @@ export const EventModal: React.FC<EventModalProps> = ({
           startTime: startTime,
           endTime: endTime,
           timezone: 'America/New_York',
-          location: '',
           patientId: '',
-          providerId: ''
+          providerId: '',
+          status: 'pending',
+          description: ''
         });
         setPatientSearchQuery('');
         setProviderSearchQuery('');
@@ -102,12 +106,14 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
   const patientDropdownRef = useRef<HTMLDivElement>(null);
-  const [patients, setPatients] = useState<User[]>([]);
+  const [allPatients, setAllPatients] = useState<User[]>([]);
+  const [loadingPatients, setLoadingPatients] = useState(false);
 
   const [providerSearchQuery, setProviderSearchQuery] = useState('');
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const providerDropdownRef = useRef<HTMLDivElement>(null);
-  const [providers, setProviders] = useState<User[]>([]);
+  const [allProviders, setAllProviders] = useState<User[]>([]);
+  const [loadingProviders, setLoadingProviders] = useState(false);
 
   const [showStartTimeDropdown, setShowStartTimeDropdown] = useState(false);
   const [showEndTimeDropdown, setShowEndTimeDropdown] = useState(false);
@@ -117,26 +123,64 @@ export const EventModal: React.FC<EventModalProps> = ({
   // Fetch users when modal opens
   useEffect(() => {
     if (isOpen) {
+      setLoadingPatients(true);
+      setLoadingProviders(true);
+
       // Fetch patients
       getUsersByRole('patient').then(({ data }) => {
-        if (data) setPatients(data.users);
+        if (data) {
+          setAllPatients(data.users);
+        }
+        setLoadingPatients(false);
       });
+
       // Fetch providers
       getUsersByRole('provider').then(({ data }) => {
-        if (data) setProviders(data.users);
+        if (data) {
+          setAllProviders(data.users);
+        }
+        setLoadingProviders(false);
       });
     }
   }, [isOpen]);
 
-  const filteredPatients = patients.filter(patient =>
-    patient.full_name.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
-    patient.email.toLowerCase().includes(patientSearchQuery.toLowerCase())
-  );
+  // Filter patients based on search query with debouncing
+  const [filteredPatients, setFilteredPatients] = useState<User[]>([]);
+  const [filteredProviders, setFilteredProviders] = useState<User[]>([]);
 
-  const filteredProviders = providers.filter(provider =>
-    provider.full_name.toLowerCase().includes(providerSearchQuery.toLowerCase()) ||
-    provider.email.toLowerCase().includes(providerSearchQuery.toLowerCase())
-  );
+  // Debounced search for patients
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (patientSearchQuery.trim() === '') {
+        setFilteredPatients(allPatients);
+      } else {
+        const filtered = allPatients.filter(patient =>
+          patient.full_name.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+          patient.email.toLowerCase().includes(patientSearchQuery.toLowerCase())
+        );
+        setFilteredPatients(filtered);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [patientSearchQuery, allPatients]);
+
+  // Debounced search for providers
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (providerSearchQuery.trim() === '') {
+        setFilteredProviders(allProviders);
+      } else {
+        const filtered = allProviders.filter(provider =>
+          provider.full_name.toLowerCase().includes(providerSearchQuery.toLowerCase()) ||
+          provider.email.toLowerCase().includes(providerSearchQuery.toLowerCase())
+        );
+        setFilteredProviders(filtered);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [providerSearchQuery, allProviders]);
 
   // Generate time options (24 hours in 30-minute intervals)
   const timeOptions = Array.from({ length: 24 }, (_, i) => {
@@ -437,14 +481,30 @@ export const EventModal: React.FC<EventModalProps> = ({
                     setPatientSearchQuery(e.target.value);
                     setShowPatientDropdown(true);
                     // Clear patientId if manually typing
-                    if (!patients.find(p => p.full_name === e.target.value)) {
+                    if (!allPatients.find(p => p.full_name === e.target.value)) {
                       handleInputChange('patientId', '');
                     }
                   }}
-                  onFocus={() => setShowPatientDropdown(true)}
+                  onFocus={() => {
+                    setShowPatientDropdown(true);
+                    // Show all patients when focusing on empty field
+                    if (patientSearchQuery === '') {
+                      setFilteredPatients(allPatients);
+                    }
+                  }}
                   className="w-full"
                 />
-                {showPatientDropdown && filteredPatients.length > 0 && (
+                {loadingPatients && showPatientDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
+                    Loading patients...
+                  </div>
+                )}
+                {!loadingPatients && showPatientDropdown && filteredPatients.length === 0 && patientSearchQuery.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
+                    No patients found
+                  </div>
+                )}
+                {!loadingPatients && showPatientDropdown && filteredPatients.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 max-h-40 overflow-y-auto">
                     {filteredPatients.map((patient) => (
                       <button
@@ -474,14 +534,30 @@ export const EventModal: React.FC<EventModalProps> = ({
                     setProviderSearchQuery(e.target.value);
                     setShowProviderDropdown(true);
                     // Clear providerId if manually typing
-                    if (!providers.find(p => p.full_name === e.target.value)) {
+                    if (!allProviders.find(p => p.full_name === e.target.value)) {
                       handleInputChange('providerId', '');
                     }
                   }}
-                  onFocus={() => setShowProviderDropdown(true)}
+                  onFocus={() => {
+                    setShowProviderDropdown(true);
+                    // Show all providers when focusing on empty field
+                    if (providerSearchQuery === '') {
+                      setFilteredProviders(allProviders);
+                    }
+                  }}
                   className="w-full"
                 />
-                {showProviderDropdown && filteredProviders.length > 0 && (
+                {loadingProviders && showProviderDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
+                    Loading providers...
+                  </div>
+                )}
+                {!loadingProviders && showProviderDropdown && filteredProviders.length === 0 && providerSearchQuery.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
+                    No providers found
+                  </div>
+                )}
+                {!loadingProviders && showProviderDropdown && filteredProviders.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 max-h-40 overflow-y-auto">
                     {filteredProviders.map((provider) => (
                       <button
@@ -496,6 +572,41 @@ export const EventModal: React.FC<EventModalProps> = ({
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Status */}
+            <div className="flex items-center space-x-3">
+              <Info className="h-5 w-5 text-default flex-shrink-0" />
+              <div className="flex-1">
+                <Label htmlFor="status" className="text-xs text-default mb-1 block">Status</Label>
+                <select
+                  id="status"
+                  value={formData.status || 'pending'}
+                  onChange={(e) => handleInputChange('status', e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-subtle rounded-md bg-default text-emphasis focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="flex items-start space-x-3">
+              <FileText className="h-5 w-5 text-default flex-shrink-0 mt-1" />
+              <div className="flex-1">
+                <Label htmlFor="description" className="text-xs text-default mb-1 block">Description</Label>
+                <textarea
+                  id="description"
+                  placeholder="Add appointment details..."
+                  value={formData.description || ''}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-subtle rounded-md bg-default text-emphasis focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  rows={3}
+                />
               </div>
             </div>
 

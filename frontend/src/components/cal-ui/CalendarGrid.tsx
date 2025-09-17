@@ -148,9 +148,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
         // Update existing event
         const { data, error } = await updateEvent(selectedEvent.id, {
           title: eventData.title,
-          description: eventData.title,
+          description: eventData.description || eventData.title,
           event_type: eventData.patientId ? 'appointment' : 'block',
-          status: 'confirmed',
+          status: eventData.status || 'confirmed',
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           patient_id: eventData.patientId,
@@ -169,9 +169,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
         // Create new event
         const { data, error } = await createEvent({
           title: eventData.title,
-          description: eventData.title,
+          description: eventData.description || eventData.title,
           event_type: eventData.patientId ? 'appointment' : 'block',
-          status: 'confirmed',
+          status: eventData.status || 'confirmed',
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           patient_id: eventData.patientId,

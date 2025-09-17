@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 
@@ -30,8 +31,10 @@ func main() {
 	// Database connection (optional for auth proxy)
 	var userHandler *auth.UserHandler
 	var eventsHandler *events.EventsHandler
+	var db *sql.DB
 	if cfg.DatabaseURL != "" {
-		db, err := database.Connect(cfg.DatabaseURL)
+		var err error
+		db, err = database.Connect(cfg.DatabaseURL)
 		if err != nil {
 			log.Printf("Warning: Failed to connect to database: %v", err)
 			log.Printf("Auth proxy will work, but user profile and events endpoints will not be available")
@@ -84,9 +87,23 @@ func main() {
 		authRoutes.POST("/logout", authHandler.Logout)
 	}
 
+	// Public API endpoints (no auth required for users listing)
+	publicAPI := r.Group("/api")
+	{
+		// Public users endpoint for searching
+		if userHandler != nil {
+			publicAPI.GET("/users", userHandler.GetUsersByRole)
+		}
+	}
+
 	// Protected API endpoints (all require Supabase JWT)
 	apiRoutes := r.Group("/api/v1")
-	apiRoutes.Use(auth.SupabaseAuthMiddleware(cfg.SupabaseJWTSecret))
+	// Use the database connection we already have
+	if db != nil {
+		apiRoutes.Use(auth.SupabaseAuthMiddlewareWithDB(cfg.SupabaseJWTSecret, db))
+	} else {
+		apiRoutes.Use(auth.SupabaseAuthMiddleware(cfg.SupabaseJWTSecret))
+	}
 	{
 		// User routes (only if database is connected)
 		if userHandler != nil {

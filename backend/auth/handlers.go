@@ -308,6 +308,77 @@ func (uh *UserHandler) createUserProfile(profile *UserProfile) error {
 	return err
 }
 
+// GetUsersByRole returns all users with a specific role
+func (uh *UserHandler) GetUsersByRole(c *gin.Context) {
+	role := c.Query("role")
+	if role == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role parameter is required"})
+		return
+	}
+
+	// Validate role
+	if role != "provider" && role != "patient" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role. Must be 'provider' or 'patient'"})
+		return
+	}
+
+	query := `
+		SELECT id, email, full_name, role, timezone, phone_number, created_at, updated_at
+		FROM users
+		WHERE role = $1
+		ORDER BY full_name ASC`
+
+	rows, err := uh.db.Query(query, role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
+		return
+	}
+	defer rows.Close()
+
+	users := []gin.H{}
+	for rows.Next() {
+		var user struct {
+			ID          string  `json:"id"`
+			Email       string  `json:"email"`
+			FullName    string  `json:"full_name"`
+			Role        string  `json:"role"`
+			Timezone    string  `json:"timezone"`
+			PhoneNumber *string `json:"phone_number"`
+			CreatedAt   string  `json:"created_at"`
+			UpdatedAt   string  `json:"updated_at"`
+		}
+
+		err := rows.Scan(
+			&user.ID,
+			&user.Email,
+			&user.FullName,
+			&user.Role,
+			&user.Timezone,
+			&user.PhoneNumber,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			continue
+		}
+
+		users = append(users, gin.H{
+			"id":           user.ID,
+			"email":        user.Email,
+			"full_name":    user.FullName,
+			"role":         user.Role,
+			"timezone":     user.Timezone,
+			"phone_number": user.PhoneNumber,
+			"created_at":   user.CreatedAt,
+			"updated_at":   user.UpdatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"users": users,
+	})
+}
+
 // Dashboard handlers for role-specific endpoints
 func ProviderDashboard(c *gin.Context) {
 	userCtx, _ := GetUserContext(c)
