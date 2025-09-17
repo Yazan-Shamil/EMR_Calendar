@@ -52,7 +52,7 @@ export interface User {
   id: string
   email: string
   full_name: string
-  role: 'provider' | 'patient'
+  role: 'provider' | 'patient' | 'admin'
   timezone: string
   phone_number?: string
   created_at: string
@@ -70,7 +70,7 @@ export const createUserProfile = (profile: { name: string; email: string }) =>
     method: 'POST',
     body: JSON.stringify(profile),
   })
-export const getUsersByRole = (role: 'provider' | 'patient') =>
+export const getUsersByRole = (role: 'provider' | 'patient' | 'admin') =>
   apiRequest<UsersResponse>(`/api/users?role=${role}`)
 
 // Provider endpoints
@@ -102,6 +102,7 @@ export interface CreateEventRequest {
   event_type: 'appointment' | 'block'
   status?: 'pending' | 'confirmed' | 'cancelled' | 'completed'
   patient_id?: string
+  provider_id?: string
 }
 
 export interface UpdateEventRequest {

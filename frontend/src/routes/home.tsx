@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { WeeklyCalendar, DayCalendar } from '@/components/cal-ui'
 import { useCalendarStore } from '@/lib/calendar/store'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { AppLayout } from '@/components/AppLayout'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { getEvents } from '@/lib/api'
@@ -12,13 +12,13 @@ export const Route = createFileRoute('/home')({
 })
 
 function HomePage() {
-  const { view, setView, setEvents, currentDate } = useCalendarStore()
+  const { view, setView, setEvents, currentDate, refreshEvents } = useCalendarStore()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Fetch events from backend
-  useEffect(() => {
-    const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
       setIsLoading(true)
       setError(null)
 
@@ -61,10 +61,23 @@ function HomePage() {
       } finally {
         setIsLoading(false)
       }
-    }
+    }, [currentDate, setEvents, refreshTrigger])
 
-    fetchEvents()
-  }, [currentDate, setEvents])
+    // Effect to fetch events
+    useEffect(() => {
+      fetchEvents()
+    }, [fetchEvents])
+
+    // Effect to listen for refresh requests
+    useEffect(() => {
+      const handleRefresh = () => {
+        setRefreshTrigger(prev => prev + 1)
+      }
+
+      // Listen for refresh events
+      window.addEventListener('calendar-refresh', handleRefresh)
+      return () => window.removeEventListener('calendar-refresh', handleRefresh)
+    }, [])
 
   return (
     <ProtectedRoute>

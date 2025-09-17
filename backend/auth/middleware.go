@@ -138,6 +138,11 @@ func RequirePatient() gin.HandlerFunc {
 	return RequireRole("patient")
 }
 
+// RequireAdmin is a convenience middleware for admin-only endpoints
+func RequireAdmin() gin.HandlerFunc {
+	return RequireRole("admin")
+}
+
 
 // CORSMiddleware handles CORS for the API
 func CORSMiddleware() gin.HandlerFunc {

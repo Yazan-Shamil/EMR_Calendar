@@ -55,14 +55,31 @@ func (eh *EventsHandler) GetEvents(c *gin.Context) {
 		offset = 0
 	}
 
-	// Build query
-	query := `
-		SELECT id, title, description, start_time, end_time, event_type, status,
-		       created_by, patient_id, created_at, updated_at
-		FROM events
-		WHERE created_by = $1`
-	args := []interface{}{userCtx.UserID}
-	argIndex := 2
+	// Build query - role-based filtering
+	var query string
+	var args []interface{}
+	var argIndex int
+
+	// Role-based filtering:
+	// - Admin users can see all events
+	// - Other users only see events where they are either the creator OR the patient
+	if userCtx.UserRole == "admin" {
+		query = `
+			SELECT id, title, description, start_time, end_time, event_type, status,
+			       created_by, patient_id, created_at, updated_at
+			FROM events
+			WHERE 1=1`
+		args = []interface{}{}
+		argIndex = 1
+	} else {
+		query = `
+			SELECT id, title, description, start_time, end_time, event_type, status,
+			       created_by, patient_id, created_at, updated_at
+			FROM events
+			WHERE (created_by = $1 OR patient_id = $1)`
+		args = []interface{}{userCtx.UserID}
+		argIndex = 2
+	}
 
 	// Date filtering
 	if dateFilter != "" {
@@ -158,6 +175,19 @@ func (eh *EventsHandler) CreateEvent(c *gin.Context) {
 		req.Status = "pending"
 	}
 
+	// Determine who should be the creator based on role and request
+	var createdBy string
+	if userCtx.UserRole == "admin" && req.ProviderID != nil && *req.ProviderID != "" {
+		// Admin creating event for a specific provider
+		createdBy = *req.ProviderID
+	} else if userCtx.UserRole == "patient" && req.ProviderID != nil && *req.ProviderID != "" {
+		// Patient creating appointment with a specific provider
+		createdBy = *req.ProviderID
+	} else {
+		// Provider creating their own event, or admin without specific provider
+		createdBy = userCtx.UserID
+	}
+
 	// Generate UUID for event
 	eventID := uuid.New().String()
 
@@ -174,7 +204,7 @@ func (eh *EventsHandler) CreateEvent(c *gin.Context) {
 	err := eh.db.QueryRow(
 		query,
 		eventID, req.Title, req.Description, req.StartTime, req.EndTime,
-		req.EventType, req.Status, userCtx.UserID, req.PatientID,
+		req.EventType, req.Status, createdBy, req.PatientID,
 		now, now,
 	).Scan(
 		&event.ID, &event.Title, &event.Description, &event.StartTime, &event.EndTime,
@@ -199,14 +229,28 @@ func (eh *EventsHandler) GetEvent(c *gin.Context) {
 	}
 	eventID := c.Param("id")
 
-	query := `
-		SELECT id, title, description, start_time, end_time, event_type, status,
-		       created_by, patient_id, created_at, updated_at
-		FROM events
-		WHERE id = $1 AND created_by = $2`
+	// Role-based access control - same as GetEvents
+	var query string
+	var args []interface{}
+
+	if userCtx.UserRole == "admin" {
+		query = `
+			SELECT id, title, description, start_time, end_time, event_type, status,
+			       created_by, patient_id, created_at, updated_at
+			FROM events
+			WHERE id = $1`
+		args = []interface{}{eventID}
+	} else {
+		query = `
+			SELECT id, title, description, start_time, end_time, event_type, status,
+			       created_by, patient_id, created_at, updated_at
+			FROM events
+			WHERE id = $1 AND (created_by = $2 OR patient_id = $2)`
+		args = []interface{}{eventID, userCtx.UserID}
+	}
 
 	var event auth.Event
-	err := eh.db.QueryRow(query, eventID, userCtx.UserID).Scan(
+	err := eh.db.QueryRow(query, args...).Scan(
 		&event.ID, &event.Title, &event.Description, &event.StartTime, &event.EndTime,
 		&event.EventType, &event.Status, &event.CreatedBy, &event.PatientID,
 		&event.CreatedAt, &event.UpdatedAt,
@@ -239,15 +283,28 @@ func (eh *EventsHandler) UpdateEvent(c *gin.Context) {
 		return
 	}
 
-	// First, check if event exists and belongs to user
+	// First, check if event exists and user has access to it
 	var existingEvent auth.Event
-	checkQuery := `
-		SELECT id, title, description, start_time, end_time, event_type, status,
-		       created_by, patient_id, created_at, updated_at
-		FROM events
-		WHERE id = $1 AND created_by = $2`
+	var checkQuery string
+	var checkArgs []interface{}
 
-	err := eh.db.QueryRow(checkQuery, eventID, userCtx.UserID).Scan(
+	if userCtx.UserRole == "admin" {
+		checkQuery = `
+			SELECT id, title, description, start_time, end_time, event_type, status,
+			       created_by, patient_id, created_at, updated_at
+			FROM events
+			WHERE id = $1`
+		checkArgs = []interface{}{eventID}
+	} else {
+		checkQuery = `
+			SELECT id, title, description, start_time, end_time, event_type, status,
+			       created_by, patient_id, created_at, updated_at
+			FROM events
+			WHERE id = $1 AND (created_by = $2 OR patient_id = $2)`
+		checkArgs = []interface{}{eventID, userCtx.UserID}
+	}
+
+	err := eh.db.QueryRow(checkQuery, checkArgs...).Scan(
 		&existingEvent.ID, &existingEvent.Title, &existingEvent.Description,
 		&existingEvent.StartTime, &existingEvent.EndTime, &existingEvent.EventType,
 		&existingEvent.Status, &existingEvent.CreatedBy, &existingEvent.PatientID,
@@ -320,17 +377,24 @@ func (eh *EventsHandler) UpdateEvent(c *gin.Context) {
 	args = append(args, time.Now().UTC())
 	argIndex++
 
-	// Add WHERE condition
-	args = append(args, eventID, userCtx.UserID)
+	// Add WHERE condition based on role
+	var whereClause string
+	if userCtx.UserRole == "admin" {
+		args = append(args, eventID)
+		whereClause = fmt.Sprintf("WHERE id = $%d", argIndex)
+	} else {
+		args = append(args, eventID, userCtx.UserID)
+		whereClause = fmt.Sprintf("WHERE id = $%d AND (created_by = $%d OR patient_id = $%d)", argIndex, argIndex+1, argIndex+1)
+	}
 
 	updateQuery := fmt.Sprintf(`
 		UPDATE events
 		SET %s
-		WHERE id = $%d AND created_by = $%d
+		%s
 		RETURNING id, title, description, start_time, end_time, event_type, status,
 		          created_by, patient_id, created_at, updated_at`,
 		strings.Join(updateFields, ", "),
-		argIndex, argIndex+1)
+		whereClause)
 
 	var updatedEvent auth.Event
 	err = eh.db.QueryRow(updateQuery, args...).Scan(
@@ -363,8 +427,19 @@ func (eh *EventsHandler) DeleteEvent(c *gin.Context) {
 	}
 	eventID := c.Param("id")
 
-	query := `DELETE FROM events WHERE id = $1 AND created_by = $2`
-	result, err := eh.db.Exec(query, eventID, userCtx.UserID)
+	// Role-based access control for deletion
+	var query string
+	var args []interface{}
+
+	if userCtx.UserRole == "admin" {
+		query = `DELETE FROM events WHERE id = $1`
+		args = []interface{}{eventID}
+	} else {
+		query = `DELETE FROM events WHERE id = $1 AND (created_by = $2 OR patient_id = $2)`
+		args = []interface{}{eventID, userCtx.UserID}
+	}
+
+	result, err := eh.db.Exec(query, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete event"})
 		return

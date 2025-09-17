@@ -43,6 +43,7 @@ interface CalendarActions {
   updateEvent: (event: CalendarEvent) => void;
   deleteEvent: (id: string) => void;
   removeEvent: (id: string) => void;
+  refreshEvents: () => void;
   navigateNext: () => void;
   navigatePrevious: () => void;
   navigateToday: () => void;
@@ -81,6 +82,10 @@ export const useCalendarStore = create<CalendarState & CalendarActions>((set) =>
   removeEvent: (id) => set((state) => ({
     events: state.events.filter(e => e.id !== id)
   })),
+  refreshEvents: () => {
+    // Trigger a refresh - this will be used by components to refetch events
+    set((state) => ({ ...state }));
+  },
 
   navigateNext: () => set((state) => {
     const amount = state.view === 'day' ? 1 : state.view === 'week' ? 7 : 30;

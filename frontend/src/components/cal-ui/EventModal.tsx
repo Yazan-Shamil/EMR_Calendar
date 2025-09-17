@@ -5,7 +5,8 @@ import { Button } from './Button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import dayjs from 'dayjs';
-import { getUsersByRole, type User } from '@/lib/api';
+import { getUsersByRole, getCurrentUser, type User } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 interface EventModalProps {
   isOpen: boolean;
@@ -44,6 +45,8 @@ export const EventModal: React.FC<EventModalProps> = ({
   mode = 'create',
   existingEvent
 }) => {
+  const { user } = useAuth();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isEditing, setIsEditing] = useState(mode === 'edit');
   const [formData, setFormData] = useState<EventFormData>({
     title: '',
@@ -83,25 +86,44 @@ export const EventModal: React.FC<EventModalProps> = ({
           dayjs(`2000-01-01 ${selectedTime}`, 'YYYY-MM-DD HH:mm').add(15, 'minutes').format('HH:mm') :
           '09:15');
 
+        // Set role-based defaults
+        let defaultProviderId = '';
+        let defaultPatientId = '';
+        let defaultProviderQuery = '';
+        let defaultPatientQuery = '';
+
+        if (currentUser) {
+          if (currentUser.role === 'provider') {
+            // Provider: lock provider to themselves
+            defaultProviderId = currentUser.id;
+            defaultProviderQuery = currentUser.full_name;
+          } else if (currentUser.role === 'patient') {
+            // Patient: lock patient to themselves
+            defaultPatientId = currentUser.id;
+            defaultPatientQuery = currentUser.full_name;
+          }
+          // Admin: no defaults, can select both
+        }
+
         setFormData({
           title: '',
           date: selectedDate ? dayjs(selectedDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
           startTime: startTime,
           endTime: endTime,
           timezone: 'America/New_York',
-          patientId: '',
-          providerId: '',
+          patientId: defaultPatientId,
+          providerId: defaultProviderId,
           status: 'pending',
           description: ''
         });
-        setPatientSearchQuery('');
-        setProviderSearchQuery('');
+        setPatientSearchQuery(defaultPatientQuery);
+        setProviderSearchQuery(defaultProviderQuery);
       }
 
       setShowPatientDropdown(false);
       setShowProviderDropdown(false);
     }
-  }, [isOpen, selectedDate, selectedTime, selectedEndTime, existingEvent, mode]);
+  }, [isOpen, selectedDate, selectedTime, selectedEndTime, existingEvent, mode, currentUser]);
 
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
@@ -119,6 +141,17 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [showEndTimeDropdown, setShowEndTimeDropdown] = useState(false);
   const startTimeDropdownRef = useRef<HTMLDivElement>(null);
   const endTimeDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch current user data when modal opens
+  useEffect(() => {
+    if (isOpen && user) {
+      getCurrentUser().then(({ data }) => {
+        if (data) {
+          setCurrentUser(data.user);
+        }
+      });
+    }
+  }, [isOpen, user]);
 
   // Fetch users when modal opens
   useEffect(() => {
@@ -469,111 +502,147 @@ export const EventModal: React.FC<EventModalProps> = ({
             </div>
 
 
-            {/* Patient Name */}
-            <div className="flex items-center space-x-3">
-              <UserIcon className="h-5 w-5 text-default flex-shrink-0" />
-              <div className="flex-1 relative" ref={patientDropdownRef}>
-                <Input
-                  type="text"
-                  placeholder="Search patient name"
-                  value={patientSearchQuery}
-                  onChange={(e) => {
-                    setPatientSearchQuery(e.target.value);
-                    setShowPatientDropdown(true);
-                    // Clear patientId if manually typing
-                    if (!allPatients.find(p => p.full_name === e.target.value)) {
-                      handleInputChange('patientId', '');
-                    }
-                  }}
-                  onFocus={() => {
-                    setShowPatientDropdown(true);
-                    // Show all patients when focusing on empty field
-                    if (patientSearchQuery === '') {
-                      setFilteredPatients(allPatients);
-                    }
-                  }}
-                  className="w-full"
-                />
-                {loadingPatients && showPatientDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
-                    Loading patients...
-                  </div>
-                )}
-                {!loadingPatients && showPatientDropdown && filteredPatients.length === 0 && patientSearchQuery.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
-                    No patients found
-                  </div>
-                )}
-                {!loadingPatients && showPatientDropdown && filteredPatients.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 max-h-40 overflow-y-auto">
-                    {filteredPatients.map((patient) => (
-                      <button
-                        key={patient.id}
-                        type="button"
-                        onClick={() => handlePatientSelect(patient)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-subtle transition-colors"
-                      >
-                        <div className="text-emphasis font-medium">{patient.full_name}</div>
-                        <div className="text-default text-xs">{patient.email}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+            {/* Patient Name - Role-based visibility */}
+            {(currentUser?.role === 'admin' || currentUser?.role === 'provider') && (
+              <div className="flex items-center space-x-3">
+                <UserIcon className="h-5 w-5 text-default flex-shrink-0" />
+                <div className="flex-1 relative" ref={patientDropdownRef}>
+                  <Input
+                    type="text"
+                    placeholder="Search patient name"
+                    value={patientSearchQuery}
+                    onChange={(e) => {
+                      setPatientSearchQuery(e.target.value);
+                      setShowPatientDropdown(true);
+                      // Clear patientId if manually typing
+                      if (!allPatients.find(p => p.full_name === e.target.value)) {
+                        handleInputChange('patientId', '');
+                      }
+                    }}
+                    onFocus={() => {
+                      setShowPatientDropdown(true);
+                      // Show all patients when focusing on empty field
+                      if (patientSearchQuery === '') {
+                        setFilteredPatients(allPatients);
+                      }
+                    }}
+                    className="w-full"
+                  />
+                  {loadingPatients && showPatientDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
+                      Loading patients...
+                    </div>
+                  )}
+                  {!loadingPatients && showPatientDropdown && filteredPatients.length === 0 && patientSearchQuery.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
+                      No patients found
+                    </div>
+                  )}
+                  {!loadingPatients && showPatientDropdown && filteredPatients.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 max-h-40 overflow-y-auto">
+                      {filteredPatients.map((patient) => (
+                        <button
+                          key={patient.id}
+                          type="button"
+                          onClick={() => handlePatientSelect(patient)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-subtle transition-colors"
+                        >
+                          <div className="text-emphasis font-medium">{patient.full_name}</div>
+                          <div className="text-default text-xs">{patient.email}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Provider Name */}
-            <div className="flex items-center space-x-3">
-              <UserIcon className="h-5 w-5 text-default flex-shrink-0" />
-              <div className="flex-1 relative" ref={providerDropdownRef}>
-                <Input
-                  type="text"
-                  placeholder="Search provider name"
-                  value={providerSearchQuery}
-                  onChange={(e) => {
-                    setProviderSearchQuery(e.target.value);
-                    setShowProviderDropdown(true);
-                    // Clear providerId if manually typing
-                    if (!allProviders.find(p => p.full_name === e.target.value)) {
-                      handleInputChange('providerId', '');
-                    }
-                  }}
-                  onFocus={() => {
-                    setShowProviderDropdown(true);
-                    // Show all providers when focusing on empty field
-                    if (providerSearchQuery === '') {
-                      setFilteredProviders(allProviders);
-                    }
-                  }}
-                  className="w-full"
-                />
-                {loadingProviders && showProviderDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
-                    Loading providers...
-                  </div>
-                )}
-                {!loadingProviders && showProviderDropdown && filteredProviders.length === 0 && providerSearchQuery.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
-                    No providers found
-                  </div>
-                )}
-                {!loadingProviders && showProviderDropdown && filteredProviders.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 max-h-40 overflow-y-auto">
-                    {filteredProviders.map((provider) => (
-                      <button
-                        key={provider.id}
-                        type="button"
-                        onClick={() => handleProviderSelect(provider)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-subtle transition-colors"
-                      >
-                        <div className="text-emphasis font-medium">{provider.full_name}</div>
-                        <div className="text-default text-xs">{provider.email}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+            {/* Patient Name - Locked for Patients */}
+            {currentUser?.role === 'patient' && (
+              <div className="flex items-center space-x-3">
+                <UserIcon className="h-5 w-5 text-default flex-shrink-0" />
+                <div className="flex-1">
+                  <Input
+                    type="text"
+                    placeholder="Patient name"
+                    value={currentUser.full_name}
+                    disabled
+                    className="w-full bg-muted"
+                  />
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Provider Name - Role-based visibility */}
+            {(currentUser?.role === 'admin' || currentUser?.role === 'patient') && (
+              <div className="flex items-center space-x-3">
+                <UserIcon className="h-5 w-5 text-default flex-shrink-0" />
+                <div className="flex-1 relative" ref={providerDropdownRef}>
+                  <Input
+                    type="text"
+                    placeholder="Search provider name"
+                    value={providerSearchQuery}
+                    onChange={(e) => {
+                      setProviderSearchQuery(e.target.value);
+                      setShowProviderDropdown(true);
+                      // Clear providerId if manually typing
+                      if (!allProviders.find(p => p.full_name === e.target.value)) {
+                        handleInputChange('providerId', '');
+                      }
+                    }}
+                    onFocus={() => {
+                      setShowProviderDropdown(true);
+                      // Show all providers when focusing on empty field
+                      if (providerSearchQuery === '') {
+                        setFilteredProviders(allProviders);
+                      }
+                    }}
+                    className="w-full"
+                  />
+                  {loadingProviders && showProviderDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
+                      Loading providers...
+                    </div>
+                  )}
+                  {!loadingProviders && showProviderDropdown && filteredProviders.length === 0 && providerSearchQuery.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 px-3 py-2 text-sm text-default">
+                      No providers found
+                    </div>
+                  )}
+                  {!loadingProviders && showProviderDropdown && filteredProviders.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-default border border-subtle rounded-md shadow-lg z-50 max-h-40 overflow-y-auto">
+                      {filteredProviders.map((provider) => (
+                        <button
+                          key={provider.id}
+                          type="button"
+                          onClick={() => handleProviderSelect(provider)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-subtle transition-colors"
+                        >
+                          <div className="text-emphasis font-medium">{provider.full_name}</div>
+                          <div className="text-default text-xs">{provider.email}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Provider Name - Locked for Providers */}
+            {currentUser?.role === 'provider' && (
+              <div className="flex items-center space-x-3">
+                <UserIcon className="h-5 w-5 text-default flex-shrink-0" />
+                <div className="flex-1">
+                  <Input
+                    type="text"
+                    placeholder="Provider name"
+                    value={currentUser.full_name}
+                    disabled
+                    className="w-full bg-muted"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Status */}
             <div className="flex items-center space-x-3">

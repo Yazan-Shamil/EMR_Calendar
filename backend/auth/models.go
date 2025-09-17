@@ -11,7 +11,7 @@ type User struct {
 	ID          string    `json:"id"`           // Supabase user ID
 	Email       string    `json:"email"`        // From Supabase auth
 	FullName    string    `json:"full_name"`    // Custom field
-	Role        string    `json:"role"`         // Custom field: provider, patient
+	Role        string    `json:"role"`         // Custom field: provider, patient, admin
 	Timezone    string    `json:"timezone"`     // Custom field
 	PhoneNumber *string   `json:"phone_number,omitempty"` // Custom field
 	CreatedAt   time.Time `json:"created_at"`
@@ -26,7 +26,7 @@ type SupabaseClaims struct {
 	Role  string `json:"role"`  // Supabase role (authenticated, anon, etc.)
 
 	// Custom claims we'll add
-	UserRole string `json:"user_role,omitempty"` // provider, patient
+	UserRole string `json:"user_role,omitempty"` // provider, patient, admin
 
 	// Standard JWT claims
 	jwt.RegisteredClaims
@@ -36,14 +36,14 @@ type SupabaseClaims struct {
 type UserContext struct {
 	UserID   string // Supabase user ID
 	Email    string // User email
-	UserRole string // provider, patient
+	UserRole string // provider, patient, admin
 }
 
 // UserProfile represents the profile data we store in our custom table
 type UserProfile struct {
 	ID          string    `json:"id" db:"id"`             // References auth.users(id)
 	FullName    string    `json:"full_name" db:"full_name"`
-	Role        string    `json:"role" db:"role"`         // provider, patient
+	Role        string    `json:"role" db:"role"`         // provider, patient, admin
 	Timezone    string    `json:"timezone" db:"timezone"`
 	PhoneNumber *string   `json:"phone_number,omitempty" db:"phone_number"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
@@ -81,6 +81,7 @@ type CreateEventRequest struct {
 	EventType   string    `json:"event_type" binding:"required,oneof=appointment block"`
 	Status      string    `json:"status" binding:"omitempty,oneof=pending confirmed cancelled"`
 	PatientID   *string   `json:"patient_id"`
+	ProviderID  *string   `json:"provider_id"` // For admin use - specifies which provider should be the creator
 }
 
 // UpdateEventRequest represents the request payload for updating an event

@@ -229,7 +229,7 @@ func (uh *UserHandler) CreateUserProfile(c *gin.Context) {
 
 	var req struct {
 		FullName    string  `json:"full_name" binding:"required"`
-		Role        string  `json:"role" binding:"required,oneof=provider patient"`
+		Role        string  `json:"role" binding:"required,oneof=provider patient admin"`
 		Timezone    string  `json:"timezone"`
 		PhoneNumber *string `json:"phone_number"`
 	}
@@ -317,8 +317,8 @@ func (uh *UserHandler) GetUsersByRole(c *gin.Context) {
 	}
 
 	// Validate role
-	if role != "provider" && role != "patient" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role. Must be 'provider' or 'patient'"})
+	if role != "provider" && role != "patient" && role != "admin" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role. Must be 'provider', 'patient', or 'admin'"})
 		return
 	}
 

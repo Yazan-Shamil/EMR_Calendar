@@ -164,6 +164,10 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
         if (data) {
           const updatedEvent = backendEventToCalendarEvent(data);
           updateInStore(updatedEvent);
+          // Trigger a refresh to get the latest events from the server
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('calendar-refresh'));
+          }, 100);
         }
       } else {
         // Create new event
@@ -175,6 +179,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           patient_id: eventData.patientId,
+          provider_id: eventData.providerId,
         });
 
         if (error) {
@@ -185,6 +190,10 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
         if (data) {
           const newEvent = backendEventToCalendarEvent(data);
           addEvent(newEvent);
+          // Trigger a refresh to get the latest events from the server
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('calendar-refresh'));
+          }, 100);
         }
       }
     } catch (error) {
@@ -201,6 +210,10 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
         return;
       }
       deleteEvent(eventId);
+      // Trigger a refresh to get the latest events from the server
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('calendar-refresh'));
+      }, 100);
     } catch (error) {
       console.error('Error deleting event:', error);
     }
