@@ -32,9 +32,9 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
   };
   
   return (
-    <div className={cn('bg-white border border-subtle rounded-lg overflow-hidden flex flex-col h-full', className)}>
+    <div className={cn('bg-white border border-subtle rounded-lg flex flex-col overflow-hidden', className)}>
       {/* Header */}
-      <div className="bg-white border-b border-subtle p-4 flex-shrink-0">
+      <div className="bg-white border-b border-subtle rounded-t-lg p-4 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h2 className="text-xl font-semibold text-emphasis">
@@ -98,7 +98,7 @@ export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
       </div>
 
       {/* Calendar Grid */}
-      <CalendarGrid days={days} className="flex-1 min-h-0" />
+      <CalendarGrid days={days} className="flex-1 min-h-0 overflow-hidden" />
     </div>
   );
 };

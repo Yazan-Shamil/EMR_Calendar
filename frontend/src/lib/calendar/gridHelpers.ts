@@ -21,12 +21,13 @@ export function snapToInterval(minutes: number, interval: number = GRID_CONFIG.T
 
 // Calculate event position on the grid
 export function calculateEventPosition(
-  event: { start: Date; end: Date },
+  start: Date,
+  end: Date,
   startHour: number,
   cellHeight: number = GRID_CONFIG.CELL_HEIGHT
 ) {
-  const eventStart = dayjs(event.start);
-  const eventEnd = dayjs(event.end);
+  const eventStart = dayjs(start);
+  const eventEnd = dayjs(end);
 
   const startMinutes = (eventStart.hour() - startHour) * 60 + eventStart.minute();
   const endMinutes = (eventEnd.hour() - startHour) * 60 + eventEnd.minute();
@@ -38,15 +39,34 @@ export function calculateEventPosition(
   return { top, height };
 }
 
-// Get display configuration based on event height
-export function getEventDisplayConfig(height: number) {
-  if (height >= 40) {
-    return 'full'; // Show title and time
-  } else if (height >= 18) {
-    return 'compact'; // Show only title (includes 15-min events at 20px height)
+// Get display configuration based on event duration
+export function getEventDisplayConfig(start: Date, end: Date) {
+  const startTime = dayjs(start);
+  const endTime = dayjs(end);
+  const durationMinutes = endTime.diff(startTime, 'minute');
+  const height = (durationMinutes / 60) * GRID_CONFIG.CELL_HEIGHT;
+
+  // Calculate what to show based on event height
+  const showTitle = height >= 18;
+  const showTime = height >= 35;
+  const showDuration = height >= 50;
+
+  // Format duration string
+  let duration = '';
+  if (durationMinutes < 60) {
+    duration = `${durationMinutes}m`;
   } else {
-    return 'minimal'; // Show dot or minimal indicator
+    const hours = Math.floor(durationMinutes / 60);
+    const minutes = durationMinutes % 60;
+    duration = minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
   }
+
+  return {
+    showTitle,
+    showTime,
+    showDuration,
+    duration
+  };
 }
 
 // Format time range for display

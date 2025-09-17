@@ -63,7 +63,7 @@ function HomePage() {
     <ProtectedRoute>
       <AppLayout>
         {/* Calendar Views - Full Height with integrated header */}
-        <div className="flex-1 p-4 overflow-hidden">
+        <div className="h-full p-4 flex flex-col overflow-hidden">
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
               {error}
@@ -76,12 +76,12 @@ function HomePage() {
           ) : view === 'week' ? (
             <WeeklyCalendar
               onViewChange={setView}
-              className="w-full h-full"
+              className="flex-1 min-h-0"
             />
           ) : (
             <DayCalendar
               onViewChange={setView}
-              className="w-full h-full"
+              className="flex-1 min-h-0"
             />
           )}
         </div>

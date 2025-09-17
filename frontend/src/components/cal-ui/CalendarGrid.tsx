@@ -144,7 +144,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
 
     if (!draftDay.isSame(targetDay)) return null;
 
-    const position = calculateEventPosition(draftEvent.start, draftEvent.end, startHour);
+    const position = calculateEventPosition(draftEvent.start, draftEvent.end, startHour, GRID_CONFIG.CELL_HEIGHT);
     const display = getEventDisplayConfig(draftEvent.start, draftEvent.end);
 
     // Only render if event is within visible hours
@@ -172,7 +172,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
 
   // Render event
   const renderEvent = (event: CalendarEvent) => {
-    const position = calculateEventPosition(event.start, event.end, startHour);
+    const position = calculateEventPosition(event.start, event.end, startHour, GRID_CONFIG.CELL_HEIGHT);
     const display = getEventDisplayConfig(event.start, event.end);
 
     // Only render if event is within visible hours
@@ -223,11 +223,11 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
   };
 
   return (
-    <div className={cn('flex-1 overflow-hidden', className)}>
+    <div className={cn('flex flex-col h-full', className)}>
       {/* Scrollable grid container */}
       <div
         ref={containerRef}
-        className="h-full overflow-y-auto overflow-x-hidden relative"
+        className="flex-1 overflow-y-auto overflow-x-hidden relative min-h-0 rounded-b-lg"
         style={{
           scrollbarWidth: 'thin',
           scrollbarColor: '#e2e8f0 transparent',
@@ -247,10 +247,10 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
             <React.Fragment key={hour}>
               {/* Time label */}
               <div
-                className="sticky left-0 bg-white border-r border-b border-subtle text-xs text-default flex items-start justify-end pr-2 pt-1 z-10"
+                className="sticky left-0 bg-white border-r border-b border-subtle text-xs text-default flex items-start justify-end pr-3 pt-2 z-10"
                 style={{ height: `${GRID_CONFIG.CELL_HEIGHT}px` }}
               >
-                <span className="mt-[-8px]">{formatTime(hour)}</span>
+                <span className="-mt-2 text-gray-500">{formatTime(hour)}</span>
               </div>
 
               {/* Day cells */}

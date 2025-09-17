@@ -209,11 +209,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <div className="flex w-0 flex-1 flex-col h-screen">
-        <main className="flex-1 flex flex-col bg-muted overflow-hidden w-full">
-          <div className="flex-1 w-full">
-            {children}
-          </div>
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <main className="flex-1 flex flex-col bg-muted min-h-0 overflow-hidden">
+          {children}
         </main>
       </div>
 
