@@ -295,7 +295,9 @@ func (ah *AvailabilityHandler) CreateOverride(c *gin.Context) {
 	}
 
 	// Validate that override date is in the future or today
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	// Note: OverrideDate already comes with timezone from frontend
+	// Just truncate to day boundary for comparison
+	today := time.Now().Truncate(24 * time.Hour)
 	overrideDate := req.OverrideDate.Truncate(24 * time.Hour)
 	if overrideDate.Before(today) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Override date cannot be in the past"})
