@@ -109,7 +109,7 @@ func (cc *ConflictChecker) CheckTimeSlotAvailability(
 // getDateOverride checks for a specific date override
 func (cc *ConflictChecker) getDateOverride(providerID string, requestTime time.Time) (*Availability, error) {
 	// Get date part only (ignore time)
-	requestDate := requestTime.UTC().Truncate(24 * time.Hour)
+	requestDate := requestTime.Truncate(24 * time.Hour)
 
 	query := `
 		SELECT id, user_id, day_of_week, start_time, end_time, override_date, is_available, created_at, updated_at
@@ -172,11 +172,14 @@ func (cc *ConflictChecker) isTimeWithinHours(startTime, endTime time.Time, avail
 		return false
 	}
 
-	// Extract hour and minute from UTC request times
-	requestStartHour := startTime.UTC().Hour()
-	requestStartMin := startTime.UTC().Minute()
-	requestEndHour := endTime.UTC().Hour()
-	requestEndMin := endTime.UTC().Minute()
+	// The time.Time object preserves the original timezone from the request
+	// When frontend sends "2024-01-15T14:00:00-05:00", Go parses it with that timezone
+	// So .Hour() returns 14 (2 PM in EST), not 19 (7 PM UTC)
+	// This works correctly as long as availability hours (09:00-17:00) are in the same timezone
+	requestStartHour := startTime.Hour()
+	requestStartMin := startTime.Minute()
+	requestEndHour := endTime.Hour()
+	requestEndMin := endTime.Minute()
 
 	// Convert to minutes since midnight for easier comparison
 	requestStartMinutes := requestStartHour*60 + requestStartMin

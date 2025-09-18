@@ -503,9 +503,9 @@ func (ah *AvailabilityHandler) UpdateSchedule(c *gin.Context) {
 			for _, day := range slot.Days {
 				availabilityID := uuid.New().String()
 
-				// Extract time from frontend format (1970-01-01T09:00:00.000Z)
-				startTimeStr := slot.StartTime.UTC().Format("15:04:05")
-				endTimeStr := slot.EndTime.UTC().Format("15:04:05")
+				// Extract time from frontend format - keep in local time, don't convert to UTC
+				startTimeStr := slot.StartTime.Format("15:04:05")
+				endTimeStr := slot.EndTime.Format("15:04:05")
 
 				insertQuery := `
 					INSERT INTO availability (id, user_id, day_of_week, start_time, end_time, override_date, is_available, created_at, updated_at)
@@ -575,9 +575,9 @@ func (ah *AvailabilityHandler) CreateSchedule(c *gin.Context) {
 		for _, day := range slot.Days {
 			availabilityID := uuid.New().String()
 
-			// Extract time from frontend format (1970-01-01T09:00:00.000Z)
-			startTimeStr := slot.StartTime.UTC().Format("15:04:05")
-			endTimeStr := slot.EndTime.UTC().Format("15:04:05")
+			// Extract time from frontend format - keep in local time, don't convert to UTC
+			startTimeStr := slot.StartTime.Format("15:04:05")
+			endTimeStr := slot.EndTime.Format("15:04:05")
 
 			insertQuery := `
 				INSERT INTO availability (id, user_id, day_of_week, start_time, end_time, override_date, is_available, created_at, updated_at)
