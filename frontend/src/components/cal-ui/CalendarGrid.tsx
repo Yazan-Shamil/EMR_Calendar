@@ -13,6 +13,7 @@ import {
 } from '@/lib/calendar/gridHelpers';
 import { EventModal } from './EventModal';
 import { createEvent, updateEvent, deleteEvent as deleteEventAPI } from '@/lib/api';
+import toast from 'react-hot-toast';
 import { backendEventToCalendarEvent } from '@/lib/calendar/eventHelpers';
 import type { EventFormData } from './EventModal';
 
@@ -155,7 +156,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
 
       if (selectedEvent?.id) {
         // Update existing event
-        const { data, error } = await updateEvent(selectedEvent.id, {
+        const response = await updateEvent(selectedEvent.id, {
           title: eventData.title,
           description: eventData.description || eventData.title,
           event_type: eventData.patientId ? 'appointment' : 'block',
@@ -165,10 +166,19 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
           patient_id: eventData.patientId,
         });
 
-        if (error) {
-          console.error('Failed to update event:', error);
+        if (response.error) {
+          // Check if it's a 409 conflict error
+          if (response.status === 409) {
+            const message = response.details?.message || 'This time slot is not available';
+            toast.error(message);
+          } else {
+            toast.error('Failed to update appointment. Please try again.');
+          }
+          console.error('Failed to update event:', response.error, response.details);
           return;
         }
+
+        const { data } = response;
 
         if (data) {
           const updatedEvent = backendEventToCalendarEvent(data);
@@ -180,7 +190,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
         }
       } else {
         // Create new event
-        const { data, error } = await createEvent({
+        const response = await createEvent({
           title: eventData.title,
           description: eventData.description || eventData.title,
           event_type: eventData.patientId ? 'appointment' : 'block',
@@ -191,10 +201,19 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
           provider_id: eventData.providerId,
         });
 
-        if (error) {
-          console.error('Failed to create event:', error);
+        if (response.error) {
+          // Check if it's a 409 conflict error
+          if (response.status === 409) {
+            const message = response.details?.message || 'This time slot is not available';
+            toast.error(message);
+          } else {
+            toast.error('Failed to create appointment. Please try again.');
+          }
+          console.error('Failed to create event:', response.error, response.details);
           return;
         }
+
+        const { data } = response;
 
         if (data) {
           const newEvent = backendEventToCalendarEvent(data);
