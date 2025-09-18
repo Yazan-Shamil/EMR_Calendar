@@ -151,6 +151,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
   // Handle save event (create or update)
   const handleSaveEvent = async (eventData: EventFormData) => {
     try {
+      // Create datetime in local timezone (not UTC)
       const startDateTime = dayjs(`${eventData.date} ${eventData.startTime}`);
       const endDateTime = dayjs(`${eventData.date} ${eventData.endTime}`);
 
@@ -161,8 +162,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
           description: eventData.description || eventData.title,
           event_type: eventData.patientId ? 'appointment' : 'block',
           status: eventData.status || 'confirmed',
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
+          // Send in local time with timezone offset
+          start_time: startDateTime.format(),
+          end_time: endDateTime.format(),
           patient_id: eventData.patientId,
         });
 
@@ -195,8 +197,9 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({ days, className }) =
           description: eventData.description || eventData.title,
           event_type: eventData.patientId ? 'appointment' : 'block',
           status: eventData.status || 'confirmed',
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
+          // Send in local time with timezone offset
+          start_time: startDateTime.format(),
+          end_time: endDateTime.format(),
           patient_id: eventData.patientId,
           provider_id: eventData.providerId,
         });
