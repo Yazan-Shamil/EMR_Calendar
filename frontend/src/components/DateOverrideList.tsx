@@ -65,8 +65,9 @@ export const DateOverrideList: React.FC<DateOverrideListProps> = ({
   }
 
   return (
-    <ul className="divide-y divide-gray-200 border border-gray-200 rounded-lg overflow-hidden bg-white">
-      {sortedOverrides.map((override) => {
+    <div className="border border-gray-200 rounded-lg bg-white h-full overflow-y-auto">
+      <ul className="divide-y divide-gray-200">
+        {sortedOverrides.map((override) => {
         const isPast = override.dates.length > 0 &&
           override.dates.every(date => dayjs(date).isBefore(dayjs(), 'day'))
 
@@ -125,6 +126,7 @@ export const DateOverrideList: React.FC<DateOverrideListProps> = ({
           </li>
         )
       })}
-    </ul>
+      </ul>
+    </div>
   )
 }
