@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"emr-calendar-backend/auth"
+	"emr-calendar-backend/lib/conflicts"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -413,7 +414,7 @@ func (ah *AvailabilityHandler) CheckConflicts(c *gin.Context) {
 		return
 	}
 
-	conflictChecker := NewConflictChecker(ah.db)
+	conflictChecker := conflicts.NewConflictChecker(ah.db)
 	result, err := conflictChecker.CheckTimeSlotAvailability(req.ProviderID, req.StartTime, req.EndTime)
 
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"emr-calendar-backend/auth"
+	"emr-calendar-backend/lib/conflicts"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -173,6 +174,42 @@ func (eh *EventsHandler) CreateEvent(c *gin.Context) {
 	// Set default status if not provided
 	if req.Status == "" {
 		req.Status = "pending"
+	}
+
+	// Check availability conflicts before creating the event
+	// Only check conflicts for appointments (not for blocks)
+	if req.EventType == "appointment" {
+		var providerID string
+		if req.ProviderID != nil && *req.ProviderID != "" {
+			providerID = *req.ProviderID
+		} else {
+			// If no specific provider in request, use the user creating the event
+			providerID = userCtx.UserID
+		}
+
+		conflictChecker := conflicts.NewConflictChecker(eh.db)
+		conflictResult, err := conflictChecker.CheckTimeSlotAvailability(
+			providerID,
+			req.StartTime,
+			req.EndTime,
+		)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to check availability",
+				"details": err.Error(),
+			})
+			return
+		}
+
+		if conflictResult.HasConflict {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "Time slot not available",
+				"conflict_type": conflictResult.ConflictType,
+				"message": conflictResult.Message,
+			})
+			return
+		}
 	}
 
 	// Determine who should be the creator based on role and request

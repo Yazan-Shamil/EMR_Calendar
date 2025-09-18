@@ -56,12 +56,6 @@ type SlotsResponse struct {
 	Total int        `json:"total_slots"`
 }
 
-// ConflictResult represents the result of a conflict check
-type ConflictResult struct {
-	HasConflict  bool   `json:"has_conflict"`
-	ConflictType string `json:"conflict_type,omitempty"` // "date_override", "no_availability", "outside_hours"
-	Message      string `json:"message"`
-}
 
 // AvailabilitySlot represents a time slot for a specific set of days (frontend format)
 type AvailabilitySlot struct {
