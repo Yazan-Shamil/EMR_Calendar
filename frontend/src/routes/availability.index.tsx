@@ -27,11 +27,12 @@ export const Route = createFileRoute('/availability/')({
 })
 
 function AvailabilityContent() {
-  const { schedules, updateSchedule, addSchedule, fetchSchedule, saveSchedule, loading, error } = useAvailabilityStore()
+  const { schedules, updateSchedule, addSchedule, fetchSchedule, saveSchedule, fetchOverrides, loading, error } = useAvailabilityStore()
 
-  // Fetch schedule on component mount
+  // Fetch schedule and overrides on component mount
   useEffect(() => {
     fetchSchedule()
+    fetchOverrides()
   }, [])
 
   // Get the schedule (should always exist after fetchSchedule)
@@ -254,8 +255,8 @@ function ScheduleEditor({
   ]
 
   return (
-    <div className="flex-1 overflow-hidden w-full">
-      <div className="w-full px-4 py-8">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="h-full px-4 py-8 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between md:mb-6 md:mt-0 lg:mb-8">
           <header className="flex w-full max-w-full items-center truncate">
@@ -279,9 +280,9 @@ function ScheduleEditor({
           </header>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0 overflow-hidden">
           {/* Main Content */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 flex flex-col min-h-0 gap-8">
             {/* Weekly Schedule */}
             <div className="bg-white rounded-lg border border-gray-200">
               <div className="space-y-0">
@@ -359,7 +360,7 @@ function ScheduleEditor({
             </div>
 
             {/* Date Overrides */}
-            <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
+            <div className="flex-1 bg-white rounded-lg border border-gray-200 p-6 min-h-0 flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-medium text-gray-900">Date overrides</h3>
@@ -373,26 +374,28 @@ function ScheduleEditor({
                   Add an override
                 </button>
               </div>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-gray-600 mb-4 flex-shrink-0">
                 Add dates when your availability changes from your daily hours.
               </p>
 
-              {storeOverrides.length > 0 ? (
-                <DateOverrideList
-                  overrides={storeOverrides}
-                  onEdit={handleEditOverride}
-                  onDelete={handleDeleteOverride}
-                />
-              ) : (
-                <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-200 border-dashed">
-                  <p className="text-sm text-gray-500">No date overrides configured</p>
-                </div>
-              )}
+              <div className="flex-1 min-h-0">
+                {storeOverrides.length > 0 ? (
+                  <DateOverrideList
+                    overrides={storeOverrides}
+                    onEdit={handleEditOverride}
+                    onDelete={handleDeleteOverride}
+                  />
+                ) : (
+                  <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-200 border-dashed">
+                    <p className="text-sm text-gray-500">No date overrides configured</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="space-y-6 min-h-0 overflow-y-auto">
             {/* Timezone */}
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <label className="block text-sm font-medium text-gray-700 mb-3">
