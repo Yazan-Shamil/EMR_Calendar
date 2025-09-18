@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import { apiRequest } from '../api'
+import {
+  apiRequest,
+  getAvailabilityRules,
+  createDateOverride,
+  deleteAvailabilityRule,
+  type CreateOverrideRequest
+} from '../api'
+import dayjs from 'dayjs'
 
 export interface AvailabilitySlot {
   days: number[] // 0 = Sunday, 1 = Monday, etc.
@@ -15,8 +22,16 @@ export interface Schedule {
   availability: AvailabilitySlot[]
 }
 
+export interface DateOverride {
+  id: string
+  dates: Date[]
+  isUnavailable: boolean
+  timeSlots: { startTime: string; endTime: string }[]
+}
+
 interface AvailabilityState {
   schedules: Schedule[]
+  dateOverrides: DateOverride[]
   loading: boolean
   error: string | null
   isDataFromBackend: boolean // Track whether data comes from backend or is mock data
@@ -32,6 +47,9 @@ interface AvailabilityActions {
   setError: (error: string | null) => void
   fetchSchedule: () => Promise<void>
   saveSchedule: (schedule: Schedule) => Promise<void>
+  fetchOverrides: () => Promise<void>
+  saveOverride: (override: DateOverride) => Promise<void>
+  deleteOverride: (id: string) => Promise<void>
 }
 
 type AvailabilityStore = AvailabilityState & AvailabilityActions
@@ -55,6 +73,7 @@ const initialSchedules: Schedule[] = [
 
 export const useAvailabilityStore = create<AvailabilityStore>((set, get) => ({
   schedules: [],
+  dateOverrides: [],
   loading: false,
   error: null,
   isDataFromBackend: false,
@@ -250,6 +269,117 @@ export const useAvailabilityStore = create<AvailabilityStore>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to save schedule',
         loading: false
       })
+    }
+  },
+
+  fetchOverrides: async () => {
+    set({ loading: true, error: null })
+    try {
+      // Use the getAvailabilityRules function from api.ts
+      const { data, error } = await getAvailabilityRules({ include_overrides: true })
+
+      if (error) {
+        throw new Error(error)
+      }
+
+      if (data?.availability) {
+        // Filter for actual overrides (those with override_date)
+        const overrides = data.availability
+          .filter((rule) => rule.override_date)
+          .map((rule) => ({
+            id: rule.id,
+            dates: [new Date(rule.override_date!)],
+            isUnavailable: !rule.is_available,
+            timeSlots: rule.start_time && rule.end_time
+              ? [{ startTime: rule.start_time, endTime: rule.end_time }]
+              : []
+          }))
+
+        set({
+          dateOverrides: overrides,
+          loading: false
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch overrides:', error)
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch overrides',
+        loading: false
+      })
+    }
+  },
+
+  saveOverride: async (override: DateOverride) => {
+    set({ loading: true, error: null })
+    try {
+      // Process each selected date to create individual override records
+      for (const date of override.dates) {
+        const overrideDate = dayjs(date).startOf('day').toISOString()
+
+        if (override.isUnavailable) {
+          // Create an unavailable override (all day)
+          // Use the createDateOverride function from api.ts
+          const { data, error } = await createDateOverride({
+            override_date: overrideDate,
+            is_available: false
+          })
+
+          if (error) {
+            console.error('Failed to create override:', error)
+            throw new Error(`Failed to create override for ${dayjs(date).format('YYYY-MM-DD')}: ${error}`)
+          }
+        } else {
+          // Create available override with specific time slots
+          for (const slot of override.timeSlots) {
+            // Use the createDateOverride function from api.ts
+            const { data, error } = await createDateOverride({
+              override_date: overrideDate,
+              is_available: true,
+              start_time: slot.startTime,
+              end_time: slot.endTime
+            })
+
+            if (error) {
+              console.error('Failed to create override:', error)
+              throw new Error(`Failed to create override for ${dayjs(date).format('YYYY-MM-DD')}: ${error}`)
+            }
+          }
+        }
+      }
+
+      // Refresh the overrides list
+      await get().fetchOverrides()
+      set({ loading: false })
+    } catch (error) {
+      console.error('Failed to save override:', error)
+      set({
+        error: error instanceof Error ? error.message : 'Failed to save override',
+        loading: false
+      })
+      throw error // Re-throw to handle in component
+    }
+  },
+
+  deleteOverride: async (id: string) => {
+    set({ loading: true, error: null })
+    try {
+      // Use the deleteAvailabilityRule function from api.ts
+      const { error } = await deleteAvailabilityRule(id)
+
+      if (error) {
+        throw new Error(error)
+      }
+
+      // Refresh the overrides list
+      await get().fetchOverrides()
+      set({ loading: false })
+    } catch (error) {
+      console.error('Failed to delete override:', error)
+      set({
+        error: error instanceof Error ? error.message : 'Failed to delete override',
+        loading: false
+      })
+      throw error
     }
   },
 }))

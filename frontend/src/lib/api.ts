@@ -223,3 +223,97 @@ export const updateAvailabilitySchedule = (schedule: {
     method: 'PUT',
     body: JSON.stringify(schedule),
   })
+
+// Date override endpoints
+export interface DateOverride {
+  id: string
+  user_id: string
+  day_of_week?: number | null
+  start_time?: string | null
+  end_time?: string | null
+  override_date?: string | null
+  is_available: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateOverrideRequest {
+  override_date: string  // ISO date string
+  is_available: boolean
+  start_time?: string    // HH:MM format
+  end_time?: string      // HH:MM format
+}
+
+export interface AvailabilityResponse {
+  availability: DateOverride[]
+}
+
+export interface OverrideResponse {
+  override: DateOverride
+}
+
+// Create a date-specific availability override
+export const createDateOverride = (override: CreateOverrideRequest) =>
+  apiRequest<OverrideResponse>('/api/v1/availability/override', {
+    method: 'POST',
+    body: JSON.stringify(override),
+  })
+
+// Get all availability rules (includes both recurring and overrides)
+export const getAvailabilityRules = (params?: {
+  include_overrides?: boolean
+  start_date?: string
+  end_date?: string
+}) => {
+  const searchParams = new URLSearchParams()
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) searchParams.append(key, String(value))
+    })
+  }
+  const queryString = searchParams.toString()
+  return apiRequest<AvailabilityResponse>(`/api/v1/availability${queryString ? '?' + queryString : ''}`)
+}
+
+// Update an existing availability rule or override
+export const updateAvailabilityRule = (id: string, updates: {
+  day_of_week?: number
+  start_time?: string
+  end_time?: string
+  is_available?: boolean
+}) =>
+  apiRequest<{ availability: DateOverride }>(`/api/v1/availability/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+
+// Delete an availability rule or override
+export const deleteAvailabilityRule = (id: string) =>
+  apiRequest<{ message: string }>(`/api/v1/availability/${id}`, {
+    method: 'DELETE',
+  })
+
+// Get available slots for a specific date or date range
+export const getAvailableSlots = (params?: {
+  date?: string
+  start_date?: string
+  end_date?: string
+  duration?: number  // Duration in minutes
+}) => {
+  const searchParams = new URLSearchParams()
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) searchParams.append(key, String(value))
+    })
+  }
+  const queryString = searchParams.toString()
+  return apiRequest<{
+    date: string
+    slots: Array<{
+      start_time: string
+      end_time: string
+      duration_minutes: number
+    }>
+    total_slots: number
+  }>(`/api/v1/slots${queryString ? '?' + queryString : ''}`)
+}

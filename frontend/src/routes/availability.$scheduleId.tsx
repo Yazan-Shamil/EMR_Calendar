@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Plus, Copy, Trash2, Info, ChevronDown } from 'lucide-react'
-import { useAvailabilityStore, type Schedule } from '@/lib/stores/availabilityStore'
+import { useAvailabilityStore, type Schedule, type DateOverride } from '@/lib/stores/availabilityStore'
 import { DateOverrideModal } from '@/components/DateOverrideModal'
 import { DateOverrideList } from '@/components/DateOverrideList'
+import dayjs from 'dayjs'
 
 interface TimeSlot {
   startTime: Date
@@ -15,12 +16,7 @@ interface DayAvailability {
   timeSlots: TimeSlot[]
 }
 
-interface DateOverride {
-  id: string
-  dates: Date[]  // Changed to support multiple dates
-  isUnavailable: boolean
-  timeSlots: { startTime: string; endTime: string }[]
-}
+// DateOverride type is now imported from availabilityStore
 
 export const Route = createFileRoute('/availability/$scheduleId')({
   component: ScheduleDetailPage
@@ -28,7 +24,7 @@ export const Route = createFileRoute('/availability/$scheduleId')({
 
 function ScheduleDetailPage() {
   const { scheduleId } = Route.useParams()
-  const { schedules, updateSchedule } = useAvailabilityStore()
+  const { schedules, updateSchedule, saveSchedule } = useAvailabilityStore()
 
   const schedule = schedules.find(s => s.id === parseInt(scheduleId))
 
@@ -60,13 +56,19 @@ function ScheduleEditor({
   schedule: Schedule
   onUpdate: (id: number, updates: Partial<Schedule>) => void
 }) {
+  const { saveOverride, fetchOverrides, deleteOverride, dateOverrides } = useAvailabilityStore()
   const [localSchedule, setLocalSchedule] = useState<Schedule>(schedule)
   const [hasChanges, setHasChanges] = useState(false)
-  const [dateOverrides, setDateOverrides] = useState<DateOverride[]>([])
   const [showOverrideModal, setShowOverrideModal] = useState(false)
   const [editingOverride, setEditingOverride] = useState<DateOverride | null>(null)
 
   // Convert schedule to day-based structure for easier editing
+
+  // Fetch overrides on mount
+  useEffect(() => {
+    fetchOverrides()
+  }, [])
+
   const [weeklyAvailability, setWeeklyAvailability] = useState<DayAvailability[]>(() => {
     const daysInit: DayAvailability[] = Array.from({ length: 7 }, (_, index) => ({
       enabled: false,
@@ -207,20 +209,31 @@ function ScheduleEditor({
     setShowOverrideModal(true)
   }
 
-  const handleSaveOverride = (override: DateOverride) => {
-    if (editingOverride) {
-      setDateOverrides(dateOverrides.map(o => o.id === override.id ? override : o))
-    } else {
-      setDateOverrides([...dateOverrides, override])
+  const handleSaveOverride = async (override: DateOverride) => {
+    console.log('handleSaveOverride called with:', override)
+    try {
+      // Use the store's saveOverride method which makes the actual API calls
+      await saveOverride(override)
+
+      setShowOverrideModal(false)
+      setEditingOverride(null)
+
+      // Show success message
+      alert('Date override(s) saved successfully!')
+    } catch (error) {
+      console.error('Failed to save override:', error)
+      alert('Failed to save override. Please try again.')
     }
-    setHasChanges(true)
-    setShowOverrideModal(false)
-    setEditingOverride(null)
   }
 
-  const handleDeleteOverride = (id: string) => {
-    setDateOverrides(dateOverrides.filter(o => o.id !== id))
-    setHasChanges(true)
+  const handleDeleteOverride = async (id: string) => {
+    try {
+      // Use the store's deleteOverride method
+      await deleteOverride(id)
+    } catch (error) {
+      console.error('Failed to delete override:', error)
+      alert('Failed to delete override. Please try again.')
+    }
   }
 
   const days = [

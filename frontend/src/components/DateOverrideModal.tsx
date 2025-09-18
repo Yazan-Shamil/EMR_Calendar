@@ -20,7 +20,7 @@ interface DateOverride {
 interface DateOverrideModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (override: DateOverride) => void
+  onSave: (override: DateOverride) => void | Promise<void>
   existingOverride?: DateOverride | null
   excludedDates?: string[]
 }
@@ -86,8 +86,11 @@ export const DateOverrideModal: React.FC<DateOverrideModalProps> = ({
     }
   }
 
-  const handleSave = () => {
-    if (selectedDates.length === 0) return
+  const handleSave = async () => {
+    if (selectedDates.length === 0) {
+      alert('Please select at least one date')
+      return
+    }
 
     const override: DateOverride = {
       id: existingOverride?.id || Date.now().toString(),
@@ -96,8 +99,12 @@ export const DateOverrideModal: React.FC<DateOverrideModalProps> = ({
       timeSlots: isUnavailable ? [] : timeSlots
     }
 
-    onSave(override)
-    handleClose()
+    try {
+      await onSave(override)
+    } catch (error) {
+      console.error('Error calling onSave:', error)
+    }
+    // Don't close here - let parent handle closing after successful save
   }
 
   const handleClose = () => {
