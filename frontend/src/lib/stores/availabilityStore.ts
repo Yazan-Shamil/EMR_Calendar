@@ -50,6 +50,7 @@ interface AvailabilityActions {
   fetchOverrides: () => Promise<void>
   saveOverride: (override: DateOverride) => Promise<void>
   deleteOverride: (id: string) => Promise<void>
+  resetStore: () => void
 }
 
 type AvailabilityStore = AvailabilityState & AvailabilityActions
@@ -381,6 +382,17 @@ export const useAvailabilityStore = create<AvailabilityStore>((set, get) => ({
       })
       throw error
     }
+  },
+
+  resetStore: () => {
+    // Reset the entire store to initial state
+    set({
+      schedules: [],
+      dateOverrides: [],
+      loading: false,
+      error: null,
+      isDataFromBackend: false
+    })
   },
 }))
 

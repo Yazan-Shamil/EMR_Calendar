@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { useNavigate } from '@tanstack/react-router'
+import { useAvailabilityStore } from './stores/availabilityStore'
 
 interface AuthContextType {
   user: User | null
@@ -30,7 +31,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // Reset store when user changes (SIGNED_IN event with different user)
+      if (event === 'SIGNED_IN' && session?.user?.id !== user?.id) {
+        useAvailabilityStore.getState().resetStore()
+      }
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
@@ -40,6 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signIn = async (email: string, password: string) => {
+    // Reset store before signing in new user
+    useAvailabilityStore.getState().resetStore()
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -102,6 +110,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Clear state regardless of error
       setUser(null)
       setSession(null)
+      // Reset the availability store to clear cached data
+      useAvailabilityStore.getState().resetStore()
       // Navigate to login page
       navigate({ to: '/' })
     } catch (err) {
@@ -109,6 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Clear state even if there's an error
       setUser(null)
       setSession(null)
+      // Reset the availability store to clear cached data
+      useAvailabilityStore.getState().resetStore()
       navigate({ to: '/' })
     }
   }
