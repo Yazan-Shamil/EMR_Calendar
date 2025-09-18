@@ -32,7 +32,7 @@ function AvailabilityContent() {
   // Fetch schedule on component mount
   useEffect(() => {
     fetchSchedule()
-  }, [fetchSchedule])
+  }, [])
 
   // Get the schedule (should always exist after fetchSchedule)
   const schedule = schedules.find(s => s.isDefault) || schedules[0]
@@ -74,9 +74,9 @@ function ScheduleEditor({
   schedule: Schedule
   onUpdate: (id: number, updates: Partial<Schedule>) => void
 }) {
+  const { saveOverride, fetchOverrides, deleteOverride: deleteOverrideAPI, dateOverrides: storeOverrides } = useAvailabilityStore()
   const [localSchedule, setLocalSchedule] = useState<Schedule>(schedule)
   const [hasChanges, setHasChanges] = useState(false)
-  const [dateOverrides, setDateOverrides] = useState<DateOverride[]>([])
   const [showOverrideModal, setShowOverrideModal] = useState(false)
   const [editingOverride, setEditingOverride] = useState<DateOverride | null>(null)
 
@@ -220,20 +220,27 @@ function ScheduleEditor({
     setShowOverrideModal(true)
   }
 
-  const handleSaveOverride = (override: DateOverride) => {
-    if (editingOverride) {
-      setDateOverrides(dateOverrides.map(o => o.id === override.id ? override : o))
-    } else {
-      setDateOverrides([...dateOverrides, override])
+  const handleSaveOverride = async (override: DateOverride) => {
+    try {
+      // Call the API to save the override
+      await saveOverride(override)
+
+      // Close the modal
+      setShowOverrideModal(false)
+      setEditingOverride(null)
+    } catch (error) {
+      console.error('Failed to save override:', error)
+      // Keep modal open on error so user can retry
     }
-    setHasChanges(true)
-    setShowOverrideModal(false)
-    setEditingOverride(null)
   }
 
-  const handleDeleteOverride = (id: string) => {
-    setDateOverrides(dateOverrides.filter(o => o.id !== id))
-    setHasChanges(true)
+  const handleDeleteOverride = async (id: string) => {
+    try {
+      // Call the API to delete the override
+      await deleteOverrideAPI(id)
+    } catch (error) {
+      console.error('Failed to delete override:', error)
+    }
   }
 
   const days = [
@@ -370,9 +377,9 @@ function ScheduleEditor({
                 Add dates when your availability changes from your daily hours.
               </p>
 
-              {dateOverrides.length > 0 ? (
+              {storeOverrides.length > 0 ? (
                 <DateOverrideList
-                  overrides={dateOverrides}
+                  overrides={storeOverrides}
                   onEdit={handleEditOverride}
                   onDelete={handleDeleteOverride}
                 />
@@ -418,7 +425,7 @@ function ScheduleEditor({
         }}
         onSave={handleSaveOverride}
         existingOverride={editingOverride}
-        excludedDates={dateOverrides.flatMap(o =>
+        excludedDates={storeOverrides.flatMap(o =>
           o.dates.map(date => {
             const d = new Date(date)
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
