@@ -7,6 +7,11 @@ import {
   type CreateOverrideRequest
 } from '../api'
 import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 export interface AvailabilitySlot {
   days: number[] // 0 = Sunday, 1 = Monday, etc.
@@ -284,17 +289,28 @@ export const useAvailabilityStore = create<AvailabilityStore>((set, get) => ({
       }
 
       if (data?.availability) {
+        // Get user's timezone
+        const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
         // Filter for actual overrides (those with override_date)
         const overrides = data.availability
           .filter((rule) => rule.override_date)
-          .map((rule) => ({
-            id: rule.id,
-            dates: [new Date(rule.override_date!)],
-            isUnavailable: !rule.is_available,
-            timeSlots: rule.start_time && rule.end_time
-              ? [{ startTime: rule.start_time, endTime: rule.end_time }]
-              : []
-          }))
+          .map((rule) => {
+            // Parse the UTC date from backend and convert to user's local timezone
+            // The backend stores TIMESTAMPTZ which comes as ISO string in UTC
+            const utcDate = dayjs(rule.override_date!)
+            // Convert to local timezone for display
+            const localDate = utcDate.tz(userTimezone).toDate()
+
+            return {
+              id: rule.id,
+              dates: [localDate],
+              isUnavailable: !rule.is_available,
+              timeSlots: rule.start_time && rule.end_time
+                ? [{ startTime: rule.start_time, endTime: rule.end_time }]
+                : []
+            }
+          })
 
         set({
           dateOverrides: overrides,
@@ -313,9 +329,15 @@ export const useAvailabilityStore = create<AvailabilityStore>((set, get) => ({
   saveOverride: async (override: DateOverride) => {
     set({ loading: true, error: null })
     try {
+      // Get user's timezone (from browser)
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
       // Process each selected date to create individual override records
       for (const date of override.dates) {
-        const overrideDate = dayjs(date).startOf('day').toISOString()
+        // Create date at start of day in user's timezone
+        // Then convert to ISO string which will be in UTC but represent the correct moment
+        const localDate = dayjs(date).tz(userTimezone).startOf('day')
+        const overrideDate = localDate.toISOString()
 
         if (override.isUnavailable) {
           // Create an unavailable override (all day)
