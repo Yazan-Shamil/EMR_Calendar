@@ -9,7 +9,7 @@ interface RequestOptions extends RequestInit {
 export async function apiRequest<T = any>(
   endpoint: string,
   options: RequestOptions = {}
-): Promise<{ data?: T; error?: string }> {
+): Promise<{ data?: T; error?: string; status?: number; details?: any }> {
   try {
     const { skipAuth = false, ...fetchOptions } = options
 
@@ -34,7 +34,11 @@ export async function apiRequest<T = any>(
     const data = await response.json()
 
     if (!response.ok) {
-      return { error: data.error || `Request failed with status ${response.status}` }
+      return {
+        error: data.error || `Request failed with status ${response.status}`,
+        status: response.status,
+        details: data
+      }
     }
 
     return { data }
